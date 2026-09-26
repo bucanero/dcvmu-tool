@@ -1,0 +1,78 @@
+#
+# Publish the browser tool to GitHub Pages.
+#
+#     https://bucanero.github.io/dcvmu-tool/
+#
+# Nothing is compiled here: the page is one self-contained file. Before
+# publishing, the copy about to go out has its VMU engine pulled out and run
+# under Node against the sample card, so a broken page fails the deploy
+# rather than the visitor.
+#
+name: Deploy web tool
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'web/**'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+# The token deploy-pages exchanges for the deployment needs id-token: write.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time, and never cancel one half-way.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    # Only the page itself: no README, no tests, no hexedit.js (it is inlined).
+    - name: Assemble the site
+      run: |
+        mkdir -p _site
+        cp web/index.html _site/
+        : > _site/.nojekyll
+
+    - name: Read a card with the published page
+      run: |
+        node -e '
+          const fs = require("fs"), path = require("path"), os = require("os");
+          const html = fs.readFileSync("_site/index.html", "utf8");
+          const script = /<script>\n([\s\S]*?)\n<\/script>/.exec(html)[1];
+          const core = script.slice(0, script.indexOf("/* ===== BEGIN inlined copy"));
+          const tmp = path.join(os.tmpdir(), "dccore.js");
+          fs.writeFileSync(tmp, core + "\nmodule.exports = VMU;\n");
+          const VMU = require(tmp);
+          for (const [file, want] of [["samples/dcvmu.bin", 7], ["samples/newvmu.DCM", 25]]) {
+            const r = VMU.open(new Uint8Array(fs.readFileSync(file)), file);
+            if (!r.ok) throw new Error(file + ": " + r.reason);
+            const n = VMU.files().length;
+            if (n !== want) throw new Error(file + ": " + n + " files");
+            console.log("ok: " + file + ", " + n + " files, " + VMU.stats().free + " blocks free");
+          }
+        '
+
+    - uses: actions/configure-pages@v5
+
+    - uses: actions/upload-pages-artifact@v3
+      with:
+        path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+    - id: deployment
+      uses: actions/deploy-pages@v4

@@ -1,0 +1,2081 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dreamcast VMU Manager</title>
+<style>
+:root {
+  --bg: #0e1015;
+  --bg-2: #161a22;
+  --bg-3: #1d222c;
+  --line: #2a3140;
+  --line-2: #3a4356;
+  --fg: #e6e9ef;
+  --fg-dim: #98a2b3;
+  --fg-faint: #6b7688;
+  --accent: #4f8cff;
+  --accent-2: #8b5cf6;
+  --dc: #f97316;
+  --ok: #2ecc71;
+  --warn: #f5a623;
+  --bad: #ef4444;
+  --radius: 10px;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+.wrap { max-width: 1120px; margin: 0 auto; padding: 28px 20px 80px; }
+
+/* ---------- header ---------- */
+header.top { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 6px; }
+header.top h1 { font-size: 22px; margin: 0; letter-spacing: -0.01em; }
+header.top .ver { font: 12px var(--mono); color: var(--fg-faint); }
+header.top .ver a { color: inherit; text-decoration: underline; text-underline-offset: 2px; }
+header.top .ver a:hover { color: var(--fg-dim); }
+header.top .hlinks {
+  margin-left: auto; align-self: center;
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+}
+header.top .gh {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12.5px; font-weight: 500; text-decoration: none;
+  color: var(--fg-dim); background: var(--bg-3);
+  border: 1px solid var(--line-2); border-radius: 8px;
+  padding: 6px 11px; white-space: nowrap;
+  transition: background .12s, border-color .12s, color .12s;
+}
+header.top .gh:hover { background: #262d3a; border-color: #4a5568; color: var(--fg); }
+header.top .gh svg { width: 15px; height: 15px; fill: currentColor; }
+header.top .gh svg.card { fill: none; stroke: currentColor; stroke-width: 1.2; stroke-linecap: round; }
+.tagline { color: var(--fg-dim); font-size: 13.5px; margin: 0 0 24px; }
+.tagline b { color: var(--fg); font-weight: 600; }
+
+/* ---------- drop zone ---------- */
+#dropzone {
+  border: 1.5px dashed var(--line-2);
+  border-radius: 14px;
+  padding: 44px 24px;
+  text-align: center;
+  background: var(--bg-2);
+  transition: border-color .15s, background .15s;
+}
+#dropzone.over { border-color: var(--accent); background: #16203a; }
+#dropzone h2 { margin: 0 0 6px; font-size: 17px; font-weight: 600; }
+#dropzone p { margin: 0 0 18px; color: var(--fg-dim); font-size: 13px; }
+#dropzone .formats { font: 11.5px var(--mono); color: var(--fg-faint); margin-top: 16px; }
+
+/* ---------- buttons ---------- */
+button, .btn {
+  font: inherit; font-size: 13px; font-weight: 500;
+  color: var(--fg); background: var(--bg-3);
+  border: 1px solid var(--line-2); border-radius: 8px;
+  padding: 7px 13px; cursor: pointer;
+  transition: background .12s, border-color .12s;
+  white-space: nowrap;
+}
+button:hover { background: #262d3a; border-color: #4a5568; }
+button:active { transform: translateY(1px); }
+button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+button.primary:hover { background: #5f97ff; }
+button.danger:hover { background: #3a1d1f; border-color: var(--bad); color: #ffb4b4; }
+button.warnbtn { border-color: #6b5010; color: #f5c85a; }
+button.warnbtn:hover { background: #3a2d10; }
+button.tiny { padding: 4px 9px; font-size: 12px; }
+button:disabled { opacity: .4; cursor: not-allowed; }
+.btnrow { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+
+/* ---------- card view ---------- */
+#cardview { display: none; }
+#cardview.on { display: block; }
+
+.panel {
+  background: var(--bg-2); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: 16px 18px; margin-bottom: 18px;
+}
+.cardhead { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.cardhead .name { font-weight: 600; font-size: 15px; word-break: break-all; }
+.badge {
+  font: 11px var(--mono); text-transform: uppercase; letter-spacing: .04em;
+  padding: 3px 8px; border-radius: 999px;
+  background: var(--bg-3); border: 1px solid var(--line-2); color: var(--fg-dim);
+}
+.badge.dirty { background: #3a2d10; border-color: #6b5010; color: #f5c85a; }
+.badge.bad { background: #3a1d1f; border-color: #7a2a2d; color: #ffb4b4; }
+.badge.warn { background: #3a2d10; border-color: #6b5010; color: #f5c85a; }
+.badge.game { background: #2a1f4a; border-color: #4c3a8a; color: #c9b8ff; }
+.swatch { width: 14px; height: 14px; border-radius: 4px; border: 1px solid var(--line-2); display: inline-block; vertical-align: -2px; }
+.spacer { flex: 1 1 auto; }
+
+.stats { display: flex; gap: 22px; flex-wrap: wrap; margin-top: 14px; font-size: 13px; }
+.stat b { display: block; font: 600 18px/1.2 var(--mono); }
+.stat span { color: var(--fg-faint); font-size: 11.5px; text-transform: uppercase; letter-spacing: .05em; }
+.stat.used b { color: var(--accent); }
+.stat.free b { color: var(--ok); }
+
+/* block map: 256 blocks, 32 per row */
+.bmap { display: grid; grid-template-columns: repeat(32, 1fr); gap: 2px; margin-top: 16px; }
+.b {
+  aspect-ratio: 5 / 3; border-radius: 2px; min-width: 0;
+  background: #1c2b22; border: 1px solid #27503a;
+}
+.b.k-data { background: var(--accent); border-color: var(--accent); }
+.b.k-data.alt { background: #3a6fd6; border-color: #3a6fd6; }
+.b.k-game { background: var(--accent-2); border-color: var(--accent-2); }
+.b.k-sys  { background: #3a4356; border-color: #4a5568; }
+.b.k-dir  { background: #2d3546; border-color: #3a4356; }
+.b.k-hid  { background: var(--bg-3); border-color: var(--line); opacity: .55; }
+.b.k-bad  { background: #4a1d1f; border-color: #7a2a2d; }
+.b.hl { outline: 2px solid #fff; outline-offset: -1px; }
+.bmap.hl-on .b:not(.hl) { opacity: .35; }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 10px; font-size: 11.5px; color: var(--fg-faint); }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+
+.toolbar { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
+
+/* ---------- file grid ---------- */
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(348px, 1fr)); gap: 14px; }
+.save {
+  background: var(--bg-2); border: 1px solid var(--line);
+  border-radius: var(--radius); padding: 14px; display: flex; gap: 14px;
+  transition: border-color .12s;
+}
+.save:hover { border-color: var(--line-2); }
+.save.broken { border-color: #7a2a2d; }
+.save canvas {
+  width: 64px; height: 64px; flex: 0 0 64px;
+  image-rendering: pixelated;
+  background: #0a0c11; border: 1px solid var(--line); border-radius: 6px;
+}
+.save .noicon {
+  width: 64px; height: 64px; flex: 0 0 64px;
+  display: flex; align-items: center; justify-content: center;
+  background: #0a0c11; border: 1px solid var(--line); border-radius: 6px;
+  color: var(--fg-faint); font-size: 22px;
+}
+.save .body { min-width: 0; flex: 1; }
+.save .title {
+  font-weight: 600; font-size: 14px; margin-bottom: 2px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.save .sub { font-size: 12px; color: var(--fg-dim); margin-bottom: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.save .fname { font: 11.5px var(--mono); color: var(--fg-dim); word-break: break-all; margin-bottom: 8px; }
+.save .meta { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+.save .acts { display: flex; gap: 6px; flex-wrap: wrap; }
+.save .acts button { padding: 4px 8px; font-size: 11.5px; }
+
+.empty { text-align: center; color: var(--fg-faint); padding: 40px 0; font-size: 14px; }
+
+/* ---------- menu ---------- */
+.menuwrap { position: relative; display: inline-block; }
+.menu {
+  position: absolute; z-index: 30; top: calc(100% + 4px); left: 0; min-width: 200px;
+  background: var(--bg-3); border: 1px solid var(--line-2); border-radius: 8px;
+  padding: 4px; box-shadow: 0 12px 32px rgba(0,0,0,.55);
+}
+.menu button {
+  display: block; width: 100%; text-align: left; background: none; border: none;
+  padding: 7px 10px; border-radius: 6px; font-size: 13px;
+}
+.menu button:hover { background: #313a49; }
+.menu .sep { height: 1px; background: var(--line-2); margin: 4px 2px; }
+.menu .lbl { font: 10px var(--mono); color: var(--fg-faint); padding: 6px 10px 2px; text-transform: uppercase; letter-spacing: .06em; }
+
+/* ---------- toast ---------- */
+#toasts { position: fixed; right: 16px; bottom: 16px; display: flex; flex-direction: column; gap: 8px; z-index: 100; }
+.toast {
+  background: var(--bg-3); border: 1px solid var(--line-2); border-left: 3px solid var(--accent);
+  border-radius: 8px; padding: 10px 14px; font-size: 13px; max-width: 340px;
+  box-shadow: 0 10px 30px rgba(0,0,0,.5); animation: slidein .18s ease-out;
+}
+.toast.err { border-left-color: var(--bad); }
+.toast.ok { border-left-color: var(--ok); }
+.toast.warn { border-left-color: var(--warn); }
+@keyframes slidein { from { opacity: 0; transform: translateY(8px); } }
+
+footer { margin-top: 40px; color: var(--fg-faint); font-size: 12px; text-align: center; line-height: 1.8; }
+footer a { color: var(--fg-dim); }
+
+@media (max-width: 560px) {
+  .wrap { padding: 20px 16px 60px; }
+  .grid { grid-template-columns: 1fr; }
+  .bmap { gap: 1px; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <h1>Dreamcast VMU Manager</h1>
+    <span class="ver">web build by <a href="https://github.com/bucanero" target="_blank" rel="noopener">Bucanero</a> &middot; dcvmu-tool</span>
+    <nav class="hlinks">
+      <a class="gh" href="https://bucanero.github.io/ps2vmc-tool/" title="Open the PS2 memory card tool">
+        <svg viewBox="0 0 16 16" class="card" aria-hidden="true"><rect x="3.6" y="1.6" width="8.8" height="12.8" rx="1.4"/><path d="M6.1 1.6v3.1M8 1.6v3.1M9.9 1.6v3.1"/></svg>PS2 tool</a>
+      <a class="gh" href="https://bucanero.github.io/ps2vmc-tool/ps1/" title="Open the PS1 memory card tool">
+        <svg viewBox="0 0 16 16" class="card" aria-hidden="true"><rect x="3.6" y="1.6" width="8.8" height="12.8" rx="1.4"/><path d="M6.1 1.6v3.1M8 1.6v3.1M9.9 1.6v3.1"/></svg>PS1 tool</a>
+      <a class="gh" href="https://github.com/bucanero/dcvmu-tool" target="_blank" rel="noopener"
+         title="View the source on GitHub">
+        <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8Z"/></svg>GitHub</a>
+    </nav>
+  </header>
+  <p class="tagline">
+    Open, inspect and edit Sega Dreamcast VMU memory cards.
+    <b>Everything runs locally in your browser</b> &mdash; no upload, no server, no install.
+  </p>
+
+  <div id="dropzone">
+    <h2>Drop a VMU image here</h2>
+    <p>or pick one from your computer</p>
+    <div class="btnrow">
+      <button class="primary" id="btn-open">Open VMU file&hellip;</button>
+      <button id="btn-new">New blank card</button>
+    </div>
+    <div class="formats">.bin &nbsp;.vmu &nbsp;.dcm (Nexus) &nbsp;&middot;&nbsp; 128 KB images</div>
+  </div>
+
+  <div id="cardview">
+    <div class="panel">
+      <div class="cardhead">
+        <span class="name" id="card-name">—</span>
+        <span class="badge" id="card-format">RAW</span>
+        <span class="badge" id="card-color" style="display:none"></span>
+        <span class="badge dirty" id="card-dirty" style="display:none">unsaved changes</span>
+        <span class="spacer"></span>
+        <button id="btn-close">Close card</button>
+      </div>
+
+      <div class="stats">
+        <div class="stat used"><b id="st-used">0</b><span>blocks used</span></div>
+        <div class="stat free"><b id="st-free">0</b><span>blocks free</span></div>
+        <div class="stat"><b id="st-files">0</b><span>files</span></div>
+        <div class="stat"><b id="st-dir">0</b><span>dir entries free</span></div>
+        <div class="stat"><b id="st-date">—</b><span>formatted</span></div>
+      </div>
+
+      <div class="bmap" id="bmap"></div>
+      <div class="legend">
+        <span><i style="background:#1c2b22;border:1px solid #27503a"></i>free</span>
+        <span><i style="background:var(--accent)"></i>data</span>
+        <span><i style="background:var(--accent-2)"></i>game</span>
+        <span><i style="background:#2d3546"></i>directory</span>
+        <span><i style="background:#3a4356"></i>FAT / root</span>
+        <span><i style="background:var(--bg-3);opacity:.55"></i>unused by the BIOS</span>
+      </div>
+
+      <div class="toolbar">
+        <button class="primary" id="btn-import">Import save&hellip;</button>
+        <div class="menuwrap">
+          <button id="btn-savecard">Download card &#9662;</button>
+        </div>
+        <button class="danger" id="btn-format">Format card</button>
+      </div>
+    </div>
+
+    <div class="grid" id="grid"></div>
+    <div class="empty" id="grid-empty" style="display:none">This memory card is empty.</div>
+  </div>
+
+  <footer>
+    Ported from <a href="https://github.com/bucanero/dcvmu-tool" target="_blank" rel="noopener">dcvmu-tool</a> by Bucanero,
+    based on <a href="https://github.com/RossMeikleham/FUSE-VMU" target="_blank" rel="noopener">FUSE-VMU</a> by Ross Meikleham,
+    <a href="https://github.com/bucanero/dci4vmi" target="_blank" rel="noopener">dci4vmi</a>
+    and <a href="https://github.com/bucanero/vmu2gif" target="_blank" rel="noopener">vmu2gif</a>. GPLv3.<br>
+    Your card files never leave this machine.
+  </footer>
+</div>
+
+<div id="toasts"></div>
+<input type="file" id="file-card" style="display:none">
+<input type="file" id="file-save" style="display:none" multiple accept=".dci,.vmi,.vms">
+
+<script>
+"use strict";
+
+/* =====================================================================
+ * Dreamcast VMU core  (JS port of src/dcvmu.c and src/dcsave.c)
+ *
+ * Same layout, same allocation order and same byte output as dcvmu-tool,
+ * so a card edited here and a card edited by the CLI come out identical.
+ * web/test/dctest.js checks that against the CLI.
+ * ===================================================================== */
+const VMU = (() => {
+  const BLK = 512, BLOCKS = 256, SIZE = BLK * BLOCKS, ROOT = 255;
+  const NAME = 12, DIRENT = 32, PER_BLOCK = BLK / DIRENT;
+  const FREE = 0xFFFC, EOF = 0xFFFA;
+  const DATA = 0x33, GAME = 0xCC, PROTECTED = 0xFF;
+
+  /* what the BIOS writes on a standard card */
+  const STD = { FAT: 254, DIR: 253, DIR_SIZE: 13, USER: 200 };
+
+  const ERR = {
+    SIZE: "not a 128 KB VMU image",
+    FORMAT: "memory card is not formatted",
+    NOENT: "file not found",
+    EXIST: "a file with that name already exists",
+    NOSPC: "not enough free blocks",
+    DIRFULL: "the directory is full",
+    NAME: "file names are 1 to 12 characters",
+    CHAIN: "the file's FAT chain is broken",
+    GAME: "a game file needs the first blocks of the card, which are in use",
+  };
+
+  let img = new Uint8Array(SIZE);
+  let root = null;
+  let dcm = false;
+
+  const sjis = (() => {
+    try { return new TextDecoder("shift-jis"); } catch (e) { return null; }
+  })();
+
+  const u16 = (b, o) => b[o] | (b[o + 1] << 8);
+  const u32 = (b, o) => (b[o] | (b[o + 1] << 8) | (b[o + 2] << 16) | (b[o + 3] << 24)) >>> 0;
+  const put16 = (b, o, v) => { b[o] = v & 0xff; b[o + 1] = (v >> 8) & 0xff; };
+  const put32 = (b, o, v) => { put16(b, o, v & 0xffff); put16(b, o + 2, (v >>> 16) & 0xffff); };
+
+  const bcd2dec = v => (v >> 4) * 10 + (v & 0x0f);
+  const dec2bcd = v => (((Math.floor(v / 10)) % 10) << 4) | (v % 10);
+
+  /* 4-byte groups reversed, as .DCI and .DCM store data */
+  function swap32(buf) {
+    for (let i = 0; i + 4 <= buf.length; i += 4) {
+      let t = buf[i]; buf[i] = buf[i + 3]; buf[i + 3] = t;
+      t = buf[i + 1]; buf[i + 1] = buf[i + 2]; buf[i + 2] = t;
+    }
+    return buf;
+  }
+
+  /* BCD timestamp for now; day of week counts from Monday on the VMU */
+  function now() {
+    const d = new Date();
+    return new Uint8Array([
+      dec2bcd(Math.floor(d.getFullYear() / 100)), dec2bcd(d.getFullYear() % 100),
+      dec2bcd(d.getMonth() + 1), dec2bcd(d.getDate()),
+      dec2bcd(d.getHours()), dec2bcd(d.getMinutes()), dec2bcd(d.getSeconds()),
+      dec2bcd((d.getDay() + 6) % 7)
+    ]);
+  }
+
+  /* Fixed-width text, padding trimmed. Shift-JIS where the browser has it. */
+  function text(bytes) {
+    let n = bytes.length;
+    while (n > 0 && (bytes[n - 1] === 0x20 || bytes[n - 1] === 0)) n--;
+    const b = bytes.subarray(0, n);
+    let s = "";
+    if (sjis) { try { s = sjis.decode(b).normalize("NFKC"); } catch (e) { s = ""; } }
+    if (!s) s = String.fromCharCode.apply(null, b);
+    return s.replace(/[\u0000-\u001f]/g, " ").trimEnd();
+  }
+
+  /* Names are compared byte for byte, like the CLI; keep them Latin-1 */
+  function nameBytes(name) {
+    const out = new Uint8Array(NAME);
+    for (let i = 0; i < Math.min(name.length, NAME); i++) out[i] = name.charCodeAt(i) & 0xff;
+    return out;
+  }
+  function nameFrom(bytes) {
+    let n = bytes.length;
+    while (n > 0 && (bytes[n - 1] === 0x20 || bytes[n - 1] === 0)) n--;
+    return String.fromCharCode.apply(null, bytes.subarray(0, n));
+  }
+  function normName(name) {
+    return nameFrom(nameBytes(name));
+  }
+
+  /* ---- root block ------------------------------------------------- */
+  function readRoot() {
+    const r = img.subarray(ROOT * BLK, SIZE);
+    let formatted = true;
+    for (let i = 0; i < 16; i++) if (r[i] !== 0x55) formatted = false;
+    root = {
+      formatted,
+      customColor: r[0x10],
+      color: { b: r[0x11], g: r[0x12], r: r[0x13], a: r[0x14] },
+      timestamp: r.slice(0x30, 0x38),
+      fatLoc: u16(r, 0x46), fatSize: u16(r, 0x48),
+      dirLoc: u16(r, 0x4a), dirSize: u16(r, 0x4c),
+      iconShape: u16(r, 0x4e), userBlocks: u16(r, 0x50)
+    };
+  }
+
+  function rootIsSane() {
+    const r = root;
+    return r.fatLoc < BLOCKS && r.fatSize >= 1 &&
+           r.dirLoc < BLOCKS && r.dirSize >= 1 && r.dirSize <= r.dirLoc + 1 &&
+           r.userBlocks >= 1 && r.userBlocks <= BLOCKS;
+  }
+
+  const fatGet = blk => u16(img, root.fatLoc * BLK + blk * 2);
+  const fatSet = (blk, v) => put16(img, root.fatLoc * BLK + blk * 2, v);
+
+  /* Accept a raw image or a Nexus .dcm. The 0x55 signature reads the same in
+   * both byte orders, so the order is settled by which one gives a usable
+   * root block, trying the one the file name suggests first. */
+  function open(bytes, fileName) {
+    if (bytes.length !== SIZE) return { ok: false, reason: ERR.SIZE };
+
+    const hint = /\.dcm$/i.test(fileName || "");
+    for (const asDcm of [hint, !hint]) {
+      img = asDcm ? swap32(bytes.slice()) : bytes.slice();
+      dcm = asDcm;
+      readRoot();
+      if (rootIsSane()) return { ok: true, dcm };
+    }
+
+    img = hint ? swap32(bytes.slice()) : bytes.slice();
+    dcm = hint;
+    readRoot();
+    return { ok: false, reason: ERR.FORMAT, dcm };
+  }
+
+  function format() {
+    img = new Uint8Array(SIZE);
+    const r = img.subarray(ROOT * BLK, SIZE);
+    r.fill(0x55, 0, 16);
+    r.set(now(), 0x30);
+    put16(r, 0x46, STD.FAT);
+    put16(r, 0x48, 1);
+    put16(r, 0x4a, STD.DIR);
+    put16(r, 0x4c, STD.DIR_SIZE);
+    put16(r, 0x4e, 0);
+    put16(r, 0x50, STD.USER);
+    /* undocumented, but present on every BIOS-formatted card */
+    put16(r, 0x52, 0x1f);
+    put16(r, 0x56, 0x80);
+    readRoot();
+
+    for (let i = 0; i < BLOCKS; i++) fatSet(i, FREE);
+    for (let i = STD.DIR; i > STD.DIR - STD.DIR_SIZE + 1; i--) fatSet(i, i - 1);
+    fatSet(STD.DIR - STD.DIR_SIZE + 1, EOF);
+    fatSet(STD.FAT, EOF);
+    fatSet(ROOT, EOF);
+  }
+
+  function create() {
+    format();
+    dcm = false;
+    return { ok: true, dcm };
+  }
+
+  function exportCard(asDcm) {
+    const out = img.slice();
+    return asDcm ? swap32(out) : out;
+  }
+
+  /* ---- directory -------------------------------------------------- */
+  const dirCount = () => root.dirSize * PER_BLOCK;
+
+  /* slot 0 is the first entry of block 253, slot 16 the first of 252 */
+  function direntOffset(idx) {
+    return (root.dirLoc - Math.floor(idx / PER_BLOCK)) * BLK + (idx % PER_BLOCK) * DIRENT;
+  }
+
+  function decodeDirent(d) {
+    return {
+      filetype: d[0], copyprotect: d[1], firstblk: u16(d, 2),
+      name: nameFrom(d.subarray(4, 16)),
+      timestamp: d.slice(0x10, 0x18),
+      filesize: u16(d, 0x18), hdroff: u16(d, 0x1a)
+    };
+  }
+
+  function encodeDirent(ent, d) {
+    d.fill(0, 0, DIRENT);
+    d[0] = ent.filetype;
+    d[1] = ent.copyprotect;
+    put16(d, 2, ent.firstblk);
+    d.set(nameBytes(ent.name), 4);   /* NUL padded, whatever it was before */
+    d.set(ent.timestamp, 0x10);
+    put16(d, 0x18, ent.filesize);
+    put16(d, 0x1a, ent.hdroff);
+  }
+
+  function direntAt(idx) {
+    const o = direntOffset(idx);
+    const d = img.subarray(o, o + DIRENT);
+    if (d[0] !== DATA && d[0] !== GAME) return null;
+    const ent = decodeDirent(d);
+    ent.idx = idx;
+    return ent;
+  }
+
+  function find(name) {
+    const want = normName(name);
+    if (!name.length || name.length > NAME) return -1;
+    for (let i = 0; i < dirCount(); i++) {
+      const e = direntAt(i);
+      if (e && e.name === want) return i;
+    }
+    return -1;
+  }
+
+  function freeBlocks() {
+    let n = 0;
+    for (let i = 0; i < root.userBlocks; i++) if (fatGet(i) === FREE) n++;
+    return n;
+  }
+
+  /* A file's blocks; null if the chain leaves the card, ends or loops */
+  function chain(ent) {
+    const seen = new Uint8Array(BLOCKS), out = [];
+    let blk = ent.firstblk;
+    if (ent.filesize > BLOCKS) return null;
+    for (let i = 0; i < ent.filesize; i++) {
+      if (blk >= BLOCKS || seen[blk]) return null;
+      seen[blk] = 1;
+      out.push(blk);
+      blk = fatGet(blk);
+    }
+    return out;
+  }
+
+  /* Whatever part of a chain is reachable, broken or not */
+  function reach(ent) {
+    const seen = new Uint8Array(BLOCKS), out = [];
+    let blk = ent.firstblk;
+    for (let i = 0; i < ent.filesize && blk < BLOCKS && !seen[blk]; i++) {
+      seen[blk] = 1;
+      out.push(blk);
+      blk = fatGet(blk);
+    }
+    return out;
+  }
+
+  function readFile(idx) {
+    const ent = direntAt(idx);
+    if (!ent) return null;
+    const blocks = chain(ent);
+    if (!blocks) return null;
+    const out = new Uint8Array(blocks.length * BLK);
+    blocks.forEach((b, i) => out.set(img.subarray(b * BLK, (b + 1) * BLK), i * BLK));
+    return out;
+  }
+
+  /* Write edited bytes back into the blocks a file already occupies */
+  function writeFileData(idx, bytes) {
+    const ent = direntAt(idx);
+    const blocks = ent && chain(ent);
+    if (!blocks || bytes.length !== blocks.length * BLK) return false;
+    blocks.forEach((b, i) => img.set(bytes.subarray(i * BLK, (i + 1) * BLK), b * BLK));
+    return true;
+  }
+
+  /* ent: { name, filetype, copyprotect, timestamp, hdroff }. Throws with a
+   * message from ERR on failure, as vmu_write_file() returns its code. */
+  function writeFile(ent, data) {
+    if (!ent.name.length || ent.name.length > NAME) throw new Error(ERR.NAME);
+    if (find(ent.name) >= 0) throw new Error(ERR.EXIST);
+
+    const n = Math.ceil(data.length / BLK);
+    if (n < 1 || n > root.userBlocks) throw new Error(ERR.NOSPC);
+
+    let slot = -1;
+    for (let i = 0; i < dirCount() && slot < 0; i++) if (!direntAt(i)) slot = i;
+    if (slot < 0) throw new Error(ERR.DIRFULL);
+
+    const blocks = [];
+    if (ent.filetype === GAME) {
+      /* the VMU runs a game in place, from block 0 up: one per card */
+      for (let i = 0; i < dirCount(); i++) {
+        const e = direntAt(i);
+        if (e && e.filetype === GAME) throw new Error(ERR.GAME);
+      }
+      for (let i = 0; i < n; i++) {
+        if (fatGet(i) !== FREE) throw new Error(ERR.GAME);
+        blocks.push(i);
+      }
+    } else {
+      /* highest free blocks first, as the BIOS does */
+      for (let i = root.userBlocks - 1; i >= 0 && blocks.length < n; i--)
+        if (fatGet(i) === FREE) blocks.push(i);
+      if (blocks.length < n) throw new Error(ERR.NOSPC);
+    }
+
+    blocks.forEach((b, i) => {
+      const dst = img.subarray(b * BLK, (b + 1) * BLK);
+      dst.fill(0);
+      dst.set(data.subarray(i * BLK, Math.min(data.length, (i + 1) * BLK)));
+      fatSet(b, i + 1 < n ? blocks[i + 1] : EOF);
+    });
+
+    const full = Object.assign({}, ent, { firstblk: blocks[0], filesize: n });
+    const o = direntOffset(slot);
+    encodeDirent(full, img.subarray(o, o + DIRENT));
+    return full;
+  }
+
+  /* Free what a file's chain reaches, sparing blocks another file's chain
+   * also reaches (a broken chain may run into them). */
+  function deleteFile(idx) {
+    const ent = direntAt(idx);
+    if (!ent) return false;
+    const mine = new Uint8Array(BLOCKS), theirs = new Uint8Array(BLOCKS);
+    reach(ent).forEach(b => { mine[b] = 1; });
+    for (let i = 0; i < dirCount(); i++) {
+      const e = i !== idx && direntAt(i);
+      if (e) reach(e).forEach(b => { theirs[b] = 1; });
+    }
+    for (let i = 0; i < root.userBlocks; i++) if (mine[i] && !theirs[i]) fatSet(i, FREE);
+    const o = direntOffset(idx);
+    img.fill(0, o, o + DIRENT);
+    return true;
+  }
+
+  function renameFile(idx, name) {
+    if (!name.length || name.length > NAME) throw new Error(ERR.NAME);
+    const ent = direntAt(idx);
+    if (!ent) throw new Error(ERR.NOENT);
+    const other = find(name);
+    if (other >= 0 && other !== idx) throw new Error(ERR.EXIST);
+    ent.name = name;
+    const o = direntOffset(idx);
+    encodeDirent(ent, img.subarray(o, o + DIRENT));
+  }
+
+  /* ---- VMS headers ------------------------------------------------ */
+  const EYECATCH_SIZE = [0, 72 * 56 * 2, 512 + 72 * 56, 32 + 72 * 56 / 2];
+
+  function headerOffset(ent) {
+    /* FUSE-VMU and others store the file size here; an offset past the end
+     * of the file cannot be right */
+    if (ent.hdroff < ent.filesize) return ent.hdroff * BLK;
+    return ent.filetype === GAME ? BLK : 0;
+  }
+
+  function parseVms(data, off) {
+    if (off > data.length || data.length - off < 0x80) return null;
+    const h = data.subarray(off);
+    const v = {
+      descVms: text(h.subarray(0, 16)),
+      descDc: text(h.subarray(0x10, 0x30)),
+      appId: text(h.subarray(0x30, 0x40)),
+      icons: u16(h, 0x40), animSpeed: u16(h, 0x42),
+      eyecatch: u16(h, 0x44), crc: u16(h, 0x46), payload: u32(h, 0x48),
+      hdr: h, off
+    };
+    if (v.icons > 16 || v.eyecatch > 3) return null;
+    v.headerSize = 0x80 + v.icons * 512 + EYECATCH_SIZE[v.eyecatch];
+    if (v.headerSize > h.length) return null;
+    return v;
+  }
+
+  /* CRC-16 CCITT over header and payload, the CRC field taken as zero;
+   * -1 if the payload runs past the end of the file */
+  function calcCrc(v) {
+    const n = v.headerSize + v.payload;
+    if (n > v.hdr.length) return -1;
+    let crc = 0;
+    for (let i = 0; i < n; i++) {
+      const b = (i === 0x46 || i === 0x47) ? 0 : v.hdr[i];
+      crc ^= b << 8;
+      for (let k = 0; k < 8; k++) crc = (crc & 0x8000) ? ((crc << 1) ^ 0x1021) & 0xffff : (crc << 1) & 0xffff;
+    }
+    return crc;
+  }
+
+  function argb4444(c, out, o) {
+    out[o] = ((c >> 8) & 0xf) * 0x11;
+    out[o + 1] = ((c >> 4) & 0xf) * 0x11;
+    out[o + 2] = (c & 0xf) * 0x11;
+    out[o + 3] = ((c >> 12) & 0xf) * 0x11;
+  }
+
+  function decode4bpp(pal, bits, npix) {
+    const out = new Uint8ClampedArray(npix * 4);
+    for (let i = 0; i < npix; i++) {
+      const idx = (bits[i >> 1] >> ((i & 1) ? 0 : 4)) & 0xf;
+      argb4444(u16(pal, idx * 2), out, i * 4);
+    }
+    return out;
+  }
+
+  function iconRGBA(v, frame) {
+    if (frame < 0 || frame >= v.icons) return null;
+    return decode4bpp(v.hdr.subarray(0x60), v.hdr.subarray(0x80 + frame * 512), 32 * 32);
+  }
+
+  function eyecatchRGBA(v) {
+    const npix = 72 * 56;
+    const e = v.hdr.subarray(0x80 + v.icons * 512);
+    if (v.eyecatch === 1) {
+      const out = new Uint8ClampedArray(npix * 4);
+      for (let i = 0; i < npix; i++) argb4444(u16(e, i * 2), out, i * 4);
+      return out;
+    }
+    if (v.eyecatch === 2) {
+      const out = new Uint8ClampedArray(npix * 4);
+      for (let i = 0; i < npix; i++) argb4444(u16(e, e[512 + i] * 2), out, i * 4);
+      return out;
+    }
+    if (v.eyecatch === 3) return decode4bpp(e, e.subarray(32), npix);
+    return null;
+  }
+
+  /* ICONDATA_VMS: the card's own icon in the Dreamcast file manager */
+  function icondataRGBA(data, color) {
+    if (data.length < 0x18) return null;
+    const off = u32(data, color ? 0x14 : 0x10);
+    if (!off || off > data.length || data.length - off < (color ? 32 + 512 : 128)) return null;
+    if (color) return decode4bpp(data.subarray(off), data.subarray(off + 32), 32 * 32);
+    const out = new Uint8ClampedArray(32 * 32 * 4);
+    for (let i = 0; i < 1024; i++) {
+      const v = (data[off + (i >> 3)] & (0x80 >> (i & 7))) ? 0x00 : 0xff;
+      out[i * 4] = out[i * 4 + 1] = out[i * 4 + 2] = v;
+      out[i * 4 + 3] = 0xff;
+    }
+    return out;
+  }
+
+  /* ---- animated GIF (port of src/gifenc.c) ------------------------ *
+   * LZW from GIFSAVE by Sverre H. Huseby, by way of vmu2gif. Byte for byte
+   * what dcvmu-tool --icon-gif writes. */
+  function gifEncode(w, h, pal, ncolors, frames, delay) {
+    const out = [];
+    const put = (...b) => { for (const v of b) out.push(v & 0xff); };
+    const put16 = v => put(v, v >> 8);
+    const npix = w * h;
+
+    let sizebits = 0;
+    while ((2 << sizebits) < ncolors) sizebits++;
+
+    /* the first transparent entry stands for all of them */
+    let trans = -1;
+    for (let i = 0; i < ncolors && trans < 0; i++) if (pal[i * 4 + 3] < 0x80) trans = i;
+
+    put(0x47, 0x49, 0x46, 0x38, 0x39, 0x61);              /* GIF89a */
+    put16(w); put16(h);
+    put(0x80 | (sizebits << 4) | sizebits, trans < 0 ? 0 : trans, 0);
+    for (let i = 0; i < (2 << sizebits); i++)
+      if (i < ncolors) put(pal[i * 4], pal[i * 4 + 1], pal[i * 4 + 2]); else put(0, 0, 0);
+
+    if (frames.length > 1)
+      put(0x21, 0xff, 0x0b, ..."NETSCAPE2.0".split("").map(c => c.charCodeAt(0)), 3, 1, 0, 0, 0);
+
+    const codesize = Math.max(2, sizebits + 1);
+    const frame = new Uint8Array(npix);
+
+    for (const src of frames) {
+      for (let i = 0; i < npix; i++) {
+        const p = src[i] < ncolors ? src[i] : 0;
+        frame[i] = (trans >= 0 && pal[p * 4 + 3] < 0x80) ? trans : p;
+      }
+      if (frames.length > 1 || trans >= 0) {
+        put(0x21, 0xf9, 4, trans >= 0 ? (2 << 2) | 1 : 0);
+        put16(frames.length > 1 ? delay : 0);
+        put(trans < 0 ? 0 : trans, 0);
+      }
+      put(0x2c); put16(0); put16(0); put16(w); put16(h); put(0);
+      lzw(out, codesize, frame);
+    }
+    put(0x3b);
+    return Uint8Array.from(out);
+  }
+
+  function lzw(out, codesize, input) {
+    const MAXSTR = 4096, HASHSIZE = 9973, HASHSTEP = 2039;
+    const chr = new Uint8Array(MAXSTR), nxt = new Uint16Array(MAXSTR), hsh = new Uint16Array(HASHSIZE);
+    const hash = (index, b) => ((b << 8) ^ index) % HASHSIZE;
+    let count = 0;
+
+    const add = (index, b) => {
+      if (count >= MAXSTR) return 0xffff;
+      let h = hash(index, b);
+      while (hsh[h] !== 0xffff) h = (h + HASHSTEP) % HASHSIZE;
+      hsh[h] = count; chr[count] = b; nxt[count] = index;
+      return count++;
+    };
+    const find = (index, b) => {
+      if (index === 0xffff) return b;
+      let h = hash(index, b), n;
+      while ((n = hsh[h]) !== 0xffff) {
+        if (nxt[n] === index && chr[n] === b) return n;
+        h = (h + HASHSTEP) % HASHSIZE;
+      }
+      return 0xffff;
+    };
+    const clear = () => {
+      count = 0; hsh.fill(0xffff);
+      for (let i = 0; i < (1 << codesize) + 2; i++) add(0xffff, i);
+    };
+
+    /* codes packed LSB first, in sub-blocks of up to 255 bytes */
+    let block = [], acc = 0, nacc = 0;
+    const byte = v => {
+      block.push(v);
+      if (block.length === 255) { out.push(255, ...block); block = []; }
+    };
+    const bits = (code, n) => {
+      acc |= code << nacc; nacc += n;
+      while (nacc >= 8) { byte(acc & 0xff); acc >>>= 8; nacc -= 8; }
+    };
+
+    const clearcode = 1 << codesize, eoi = clearcode + 1;
+    let numbits = codesize + 1, limit = (1 << numbits) - 1, prefix = 0xffff;
+
+    out.push(codesize);
+    clear();
+    bits(clearcode, numbits);
+    for (const c of input) {
+      const idx = find(prefix, c);
+      if (idx !== 0xffff) { prefix = idx; continue; }
+      bits(prefix, numbits);
+      if (add(prefix, c) > limit) {
+        if (++numbits > 12) { bits(clearcode, numbits - 1); clear(); numbits = codesize + 1; }
+        limit = (1 << numbits) - 1;
+      }
+      prefix = c;
+    }
+    if (prefix !== 0xffff) bits(prefix, numbits);
+    bits(eoi, numbits);
+    if (nacc) byte(acc & 0xff);
+    if (block.length) out.push(block.length, ...block);
+    out.push(0);
+  }
+
+  function paletteRGBA(p) {
+    const out = new Uint8Array(64);
+    for (let i = 0; i < 16; i++) argb4444(u16(p, i * 2), out, i * 4);
+    return out;
+  }
+  function unpack4bpp(bits, npix) {
+    const out = new Uint8Array(npix);
+    for (let i = 0; i < npix; i++) out[i] = (bits[i >> 1] >> ((i & 1) ? 0 : 4)) & 0xf;
+    return out;
+  }
+
+  /* vmu2gif's timing: the header's speed times 4, in 1/100 s */
+  const iconDelay = v => v.animSpeed ? v.animSpeed * 4 : 10;
+
+  function iconGif(v) {
+    if (v.icons < 1) return null;
+    const frames = [];
+    for (let i = 0; i < v.icons; i++) frames.push(unpack4bpp(v.hdr.subarray(0x80 + i * 512), 1024));
+    return gifEncode(32, 32, paletteRGBA(v.hdr.subarray(0x60)), 16, frames, iconDelay(v));
+  }
+
+  function icondataGif(data) {
+    if (data.length < 0x18) return null;
+    let off = u32(data, 0x14);
+    if (off && off <= data.length && data.length - off >= 32 + 512)
+      return gifEncode(32, 32, paletteRGBA(data.subarray(off)), 16, [unpack4bpp(data.subarray(off + 32), 1024)], 0);
+    off = u32(data, 0x10);
+    if (!off || off > data.length || data.length - off < 128) return null;
+    const px = new Uint8Array(1024);
+    for (let i = 0; i < 1024; i++) px[i] = (data[off + (i >> 3)] & (0x80 >> (i & 7))) ? 1 : 0;
+    return gifEncode(32, 32, new Uint8Array([255, 255, 255, 255, 0, 0, 0, 255]), 2, [px], 0);
+  }
+
+  /* Recompute a data file's CRC and store it */
+  function fixCrc(idx) {
+    const ent = direntAt(idx);
+    const data = ent && readFile(idx);
+    if (!data || ent.filetype === GAME) return false;
+    const v = parseVms(data, headerOffset(ent));
+    if (!v) return false;
+    const c = calcCrc(v);
+    if (c < 0) return false;
+    put16(data, v.off + 0x46, c);
+    return writeFileData(idx, data);
+  }
+
+  /* ---- .DCI ------------------------------------------------------- */
+  function dciDecode(buf) {
+    if (buf.length < DIRENT) return null;
+    const ent = decodeDirent(buf);
+    if (ent.filetype !== DATA && ent.filetype !== GAME) return null;
+    const n = ent.filesize * BLK;
+    if (n === 0 || n > buf.length - DIRENT) return null;
+    const data = swap32(buf.slice(DIRENT, DIRENT + n));
+    ent.hdroff = headerOffset(ent) / BLK;
+    return { ent, data };
+  }
+
+  function dciEncode(idx) {
+    const ent = direntAt(idx);
+    const data = ent && readFile(idx);
+    if (!data) return null;
+    const out = new Uint8Array(DIRENT + data.length);
+    encodeDirent(ent, out);
+    out.set(data, DIRENT);
+    swap32(out.subarray(DIRENT));
+    return out;
+  }
+
+  /* ---- .VMI / .VMS ------------------------------------------------ */
+  const SEGA = [0x53, 0x45, 0x47, 0x41];
+
+  /* A VMI's time is binary, Sunday as day 0 - except where a tool wrote it
+   * in BCD, or with a 0-based month. Valid binary is read as binary, else
+   * valid BCD as BCD, else each field is clamped. As vmi_time() does. */
+  function vmiTime(t) {
+    const year = u16(t, 0) % 10000;
+    const bcd = (v, lo, hi) => (v >> 4) <= 9 && (v & 15) <= 9 && bcd2dec(v) >= lo && bcd2dec(v) <= hi;
+    const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+    let ts;
+    if (t[2] >= 1 && t[2] <= 12 && t[3] >= 1 && t[3] <= 31 && t[4] <= 23 && t[5] <= 59 && t[6] <= 59)
+      ts = [Math.floor(year / 100), year % 100, t[2], t[3], t[4], t[5], t[6]].map(dec2bcd);
+    else if (bcd(t[0], 0, 99) && bcd(t[1], 0, 99) && bcd(t[2], 0, 12) && bcd(t[3], 0, 31) &&
+             bcd(t[4], 0, 23) && bcd(t[5], 0, 59) && bcd(t[6], 0, 59))
+      ts = [t[0], t[1], t[2] || 1, t[3] || 1, t[4], t[5], t[6]];   /* 0 month/day: unset */
+    else
+      ts = [Math.floor(year / 100), year % 100, clamp(t[2], 1, 12), clamp(t[3], 1, 31),
+            clamp(t[4], 0, 23), clamp(t[5], 0, 59), clamp(t[6], 0, 59)].map(dec2bcd);
+    ts.push(dec2bcd(t[7] % 7 === 0 ? 6 : t[7] % 7 - 1));
+    return new Uint8Array(ts);
+  }
+
+  function vmiDecode(buf) {
+    if (buf.length < 0x6c) return null;
+    const info = {
+      description: text(buf.subarray(0x04, 0x24)),
+      copyright: text(buf.subarray(0x24, 0x44)),
+      resource: nameFrom(buf.subarray(0x50, 0x58)),
+      filesize: u32(buf, 0x68),
+      /* the Planetweb browser writes "ADD@" whatever the resource name */
+      checksumOk: SEGA.every((s, i) => buf[i] === (buf[0x50 + i] & s)) ||
+                  (buf[0] === 0x41 && buf[1] === 0x44 && buf[2] === 0x44 && buf[3] === 0x40)
+    };
+    if (!info.resource || !info.filesize) return null;
+
+    const mode = u16(buf, 0x64);
+    const ent = {
+      name: nameFrom(buf.subarray(0x58, 0x64)),
+      filetype: (mode & 2) ? GAME : DATA,
+      copyprotect: (mode & 1) ? PROTECTED : 0,
+      hdroff: (mode & 2) ? 1 : 0,
+      timestamp: vmiTime(buf.subarray(0x44, 0x4c))
+    };
+    return { ent, info };
+  }
+
+  /* The description is the file's own Dreamcast description, copied as raw
+   * bytes like the CLI does: it is Shift-JIS, and re-encoding the decoded
+   * text would mangle anything that is not ASCII. */
+  function vmiEncode(idx, resource, copyright) {
+    const ent = direntAt(idx);
+    const data = ent && readFile(idx);
+    if (!data) return null;
+    const out = new Uint8Array(0x6c);
+    const put = (s, at, max) => {
+      for (let i = 0; i < Math.min(s.length, max); i++) out[at + i] = s.charCodeAt(i) & 0xff;
+    };
+    const v = parseVms(data, headerOffset(ent));
+    if (v) {
+      let n = 32;
+      while (n > 0 && (v.hdr[0x10 + n - 1] === 0x20 || v.hdr[0x10 + n - 1] === 0)) n--;
+      out.set(v.hdr.subarray(0x10, 0x10 + n), 0x04);
+    }
+    put(copyright, 0x24, 32);
+    put(resource, 0x50, 8);
+    for (let i = 0; i < 4; i++) out[i] = out[0x50 + i] & SEGA[i];
+
+    const ts = ent.timestamp, dow = bcd2dec(ts[7]);
+    put16(out, 0x44, bcd2dec(ts[0]) * 100 + bcd2dec(ts[1]));
+    out[0x46] = bcd2dec(ts[2]); out[0x47] = bcd2dec(ts[3]);
+    out[0x48] = bcd2dec(ts[4]); out[0x49] = bcd2dec(ts[5]); out[0x4a] = bcd2dec(ts[6]);
+    out[0x4b] = dow === 6 ? 0 : dow + 1;
+    put16(out, 0x4c, 0);
+    put16(out, 0x4e, 1);
+    out.set(nameBytes(ent.name), 0x58);
+    put16(out, 0x64, (ent.filetype === GAME ? 2 : 0) | (ent.copyprotect === PROTECTED ? 1 : 0));
+    put32(out, 0x68, data.length);
+    return { vmi: out, vms: data };
+  }
+
+  /* ---- summaries for the UI --------------------------------------- */
+  function files() {
+    const list = [];
+    for (let i = 0; i < dirCount(); i++) {
+      const ent = direntAt(i);
+      if (!ent) continue;
+      ent.blocks = chain(ent);
+      ent.broken = !ent.blocks;
+      ent.data = ent.broken ? null : readFile(i);
+      ent.isIcondata = ent.name === "ICONDATA_VMS";
+      ent.vms = (ent.data && !ent.isIcondata) ? parseVms(ent.data, headerOffset(ent)) : null;
+      /* true, false, or null where there is nothing to check. A stored 0
+       * means the CRC was never filled in, which some games and cheat tools
+       * leave that way - not the same thing as a wrong one. */
+      ent.crcOk = null;
+      ent.crcUnset = false;
+      if (ent.vms && ent.filetype === DATA) {
+        const c = calcCrc(ent.vms);
+        if (ent.vms.crc === 0 && c !== 0) ent.crcUnset = true;
+        else if (c >= 0) ent.crcOk = c === ent.vms.crc;
+        /* otherwise the data size runs past the end: nothing to check */
+      }
+      list.push(ent);
+    }
+    return list;
+  }
+
+  /* who owns each block: a file's directory slot, or a system role */
+  function blockMap(list) {
+    const map = new Array(BLOCKS).fill(null).map(() => ({ kind: "free", owner: -1 }));
+    for (let i = root.userBlocks; i < BLOCKS; i++) map[i].kind = "hid";
+    for (let i = 0; i < root.dirSize; i++) if (root.dirLoc - i >= 0) map[root.dirLoc - i].kind = "dir";
+    map[root.fatLoc].kind = "sys";
+    map[ROOT].kind = "sys";
+    for (let i = 0; i < root.userBlocks; i++)
+      if (fatGet(i) !== FREE && map[i].kind === "free") map[i].kind = "bad";   /* allocated, no owner */
+    for (const f of list) {
+      for (const b of reach(f)) {
+        map[b].kind = f.broken ? "bad" : (f.filetype === GAME ? "game" : "data");
+        map[b].owner = f.idx;
+      }
+    }
+    return map;
+  }
+
+  function stats() {
+    let n = 0;
+    for (let i = 0; i < dirCount(); i++) if (direntAt(i)) n++;
+    const free = freeBlocks();
+    return { used: root.userBlocks - free, free, total: root.userBlocks, files: n, dirFree: dirCount() - n };
+  }
+
+  return {
+    BLK, SIZE, NAME, DATA, GAME, PROTECTED, ERR,
+    open, create, format, exportCard, files, blockMap, stats, find,
+    readFile, writeFileData, writeFile, deleteFile, renameFile, fixCrc,
+    headerOffset, parseVms, calcCrc, iconRGBA, eyecatchRGBA, icondataRGBA,
+    iconGif, icondataGif, iconDelay,
+    dciDecode, dciEncode, vmiDecode, vmiEncode, now, swap32,
+    get root() { return root; },
+    get dcm() { return dcm; },
+    get image() { return img; }
+  };
+})();
+
+/* ===== BEGIN inlined copy of web/hexedit.js ===========================
+ * This page is deliberately a single self-contained file, so the hex
+ * editor is inlined rather than loaded as a script. The copy below must
+ * stay byte-identical to web/hexedit.js (shared with ps2vmc-tool's web
+ * pages); web/test/dctest.js enforces that.
+ * ==================================================================== */
+/*
+ * hexedit.js - a small dependency-free hex editor modal.
+ *
+ * Same interaction model as the SAROO Saturn save editor: 16 bytes per row,
+ * click a byte to edit it, two hex digits commit and advance, edited bytes are
+ * highlighted until saved. Large files are paged rather than truncated, since
+ * PS2 save files run to hundreds of KB.
+ *
+ * Either column can be edited. The hex side takes two hex digits per byte; the
+ * ASCII side takes characters, so plain text can simply be typed (or pasted)
+ * straight into the file.
+ *
+ * Self-contained: it injects its own stylesheet and markup, so both the PS1
+ * and PS2 pages can use it without sharing any CSS.
+ *
+ *     HexEdit.open({
+ *       title:    "BASLUS-01360FF4",
+ *       subtitle: "save data · 2 blocks",
+ *       data:     Uint8Array,
+ *       readOnly: false,
+ *       onSave:   bytes => { ... }        // omitted/false = view only
+ *     });
+ *
+ * GPLv3, same as the rest of the repository.
+ */
+(function (root, factory) {
+  if (typeof module === "object" && module.exports) module.exports = factory();
+  else root.HexEdit = factory();
+})(typeof self !== "undefined" ? self : this, function () {
+  "use strict";
+
+  const PAGE = 4096;               /* bytes rendered at once */
+  const ROW = 16;
+
+  const HINT = "click either column to edit \u00b7 hex takes two digits, ASCII takes text";
+  const hex2 = v => v.toString(16).padStart(2, "0");
+  const asciiChar = v => (v >= 0x20 && v < 0x7f) ? String.fromCharCode(v) : ".";
+
+  /**
+   * Turn typed or pasted text into bytes for the ASCII column: one character
+   * per byte. Characters that need more than one byte (CJK, emoji, …) are
+   * dropped rather than mangled, and the run is clamped to `limit` bytes so a
+   * paste can never grow the file.
+   */
+  function encodeText(text, limit) {
+    const out = [];
+    for (const ch of text) {
+      if (out.length >= limit) break;
+      const code = ch.codePointAt(0);
+      if (code > 0xff) continue;
+      out.push(code);
+    }
+    return out;
+  }
+
+  const CSS = `
+.hx-bg { position:fixed; inset:0; z-index:200; display:none;
+  background:rgba(6,8,12,.78); align-items:center; justify-content:center; padding:18px; }
+.hx-bg.hx-on { display:flex; }
+.hx-modal { background:#161a22; border:1px solid #3a4356; border-radius:14px;
+  width:min(860px,100%); max-height:92vh; display:flex; flex-direction:column;
+  box-shadow:0 30px 80px rgba(0,0,0,.6); color:#e6e9ef;
+  font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+.hx-head { display:flex; align-items:center; gap:12px; flex-wrap:wrap;
+  padding:14px 18px; border-bottom:1px solid #2a3140; }
+.hx-head h3 { margin:0; font-size:15px; font-weight:650; word-break:break-all; }
+.hx-head .hx-sub { color:#6b7688; font-size:12px;
+  font:12px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
+.hx-head .hx-spacer { flex:1 1 auto; }
+.hx-badge { font:11px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  padding:3px 8px; border-radius:999px; background:#1d222c; border:1px solid #3a4356; color:#98a2b3; }
+.hx-badge.hx-dirtybadge { background:#3a2d10; border-color:#6b5010; color:#f5c85a; }
+.hx-body { padding:14px 18px; overflow:auto; }
+.hx-view { font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  background:#0f1218; border:1px solid #2a3140; border-radius:8px;
+  padding:10px 12px; overflow:auto; white-space:pre; }
+.hx-row { white-space:pre; }
+.hx-off { color:#6b7688; user-select:none; }
+.hx-b, .hx-a { border-radius:3px; cursor:text; }
+.hx-b:hover, .hx-a:hover { background:#33405a; }
+.hx-b.hx-d, .hx-a.hx-d { color:#f5a623; }
+.hx-ascii, .hx-a { color:#98a2b3; user-select:none; }
+.hx-cell { width:2.2ch; font:inherit; background:#12305a; color:#e6e9ef;
+  border:1px solid #4f8cff; border-radius:3px; padding:0; margin:0;
+  text-align:center; text-transform:lowercase; outline:none; vertical-align:baseline; }
+.hx-ro .hx-b, .hx-ro .hx-a { cursor:default; }
+.hx-ro .hx-b:hover, .hx-ro .hx-a:hover { background:transparent; }
+.hx-cell.hx-txt { width:1.6ch; text-transform:none; }
+.hx-bar { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:10px; }
+.hx-bar .hx-lbl { color:#6b7688; font:11.5px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
+.hx-foot { display:flex; align-items:center; gap:8px; flex-wrap:wrap;
+  padding:14px 18px; border-top:1px solid #2a3140; }
+.hx-foot .hx-spacer { flex:1 1 auto; }
+.hx-modal button { font:inherit; font-size:13px; font-weight:500; color:#e6e9ef;
+  background:#1d222c; border:1px solid #3a4356; border-radius:8px; padding:7px 13px;
+  cursor:pointer; white-space:nowrap; }
+.hx-modal button:hover { background:#262d3a; border-color:#4a5568; }
+.hx-modal button.hx-primary { background:#4f8cff; border-color:#4f8cff; color:#fff; }
+.hx-modal button.hx-primary:hover { background:#5f97ff; }
+.hx-modal button:disabled { opacity:.4; cursor:not-allowed; }
+.hx-modal button.hx-mini { padding:4px 9px; font-size:12px; }
+.hx-goto { font:12px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  background:#0f1218; color:#e6e9ef; border:1px solid #3a4356; border-radius:6px;
+  padding:5px 8px; width:11ch; }
+.hx-note { color:#6b7688; font-size:11.5px; margin-top:8px; }
+`;
+
+  let el = null;                 /* modal root */
+  let data = null;               /* Uint8Array being edited */
+  let dirty = false;
+  let readOnly = false;
+  let onSave = null;
+  let pageStart = 0;
+  let activeFinish = null;       /* closes whichever cell editor is open */
+  const dirtySet = new Set();
+
+  function build() {
+    const style = document.createElement("style");
+    style.textContent = CSS;
+    document.head.appendChild(style);
+
+    el = document.createElement("div");
+    el.className = "hx-bg";
+    el.innerHTML =
+      '<div class="hx-modal">' +
+        '<div class="hx-head">' +
+          '<h3 class="hx-title"></h3>' +
+          '<span class="hx-sub"></span>' +
+          '<span class="hx-spacer"></span>' +
+          '<span class="hx-badge hx-dirtybadge" style="display:none">edited</span>' +
+          '<span class="hx-badge hx-size"></span>' +
+        '</div>' +
+        '<div class="hx-body">' +
+          '<div class="hx-bar">' +
+            '<button class="hx-mini hx-prev">&#9664; prev</button>' +
+            '<button class="hx-mini hx-next">next &#9654;</button>' +
+            '<span class="hx-lbl hx-range"></span>' +
+            '<span class="hx-spacer" style="flex:1"></span>' +
+            '<input class="hx-goto" placeholder="offset 0x…">' +
+            '<button class="hx-mini hx-gobtn">go</button>' +
+          '</div>' +
+          '<div class="hx-view"></div>' +
+          '<div class="hx-note"></div>' +
+        '</div>' +
+        '<div class="hx-foot">' +
+          '<span class="hx-lbl hx-hint"></span>' +
+          '<span class="hx-spacer"></span>' +
+          '<button class="hx-cancel">Cancel</button>' +
+          '<button class="hx-primary hx-save">Save changes</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(el);
+
+    const q = s => el.querySelector(s);
+
+    q(".hx-view").addEventListener("click", e => {
+      if (readOnly) return;
+      const hexCell = e.target.closest(".hx-b");
+      if (hexCell) { editHex(hexCell); return; }
+      const asciiCell = e.target.closest(".hx-a");
+      if (asciiCell) editAscii(asciiCell);
+    });
+    q(".hx-prev").addEventListener("click", () => gotoOffset(pageStart - PAGE));
+    q(".hx-next").addEventListener("click", () => gotoOffset(pageStart + PAGE));
+    q(".hx-gobtn").addEventListener("click", () => {
+      const v = parseInt(q(".hx-goto").value.trim().replace(/^0x/i, ""), 16);
+      if (!isNaN(v)) gotoOffset(v);
+    });
+    q(".hx-goto").addEventListener("keydown", e => {
+      if (e.key === "Enter") { e.preventDefault(); q(".hx-gobtn").click(); }
+    });
+    q(".hx-cancel").addEventListener("click", () => close(true));
+    q(".hx-save").addEventListener("click", commit);
+    el.addEventListener("mousedown", e => { if (e.target === el) close(true); });
+    document.addEventListener("keydown", e => {
+      if (e.key === "Escape" && el.classList.contains("hx-on") &&
+          !el.querySelector(".hx-cell")) close(true);
+    });
+  }
+
+  function esc(s) {
+    return s.replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+  }
+
+  function render() {
+    const q = s => el.querySelector(s);
+    const len = data.length;
+    const end = Math.min(len, pageStart + PAGE);
+
+    let html = "";
+    for (let base = pageStart; base < end; base += ROW) {
+      let hx = "", asc = "";
+      for (let i = 0; i < ROW; i++) {
+        const o = base + i;
+        if (o < end) {
+          const d = dirtySet.has(o) ? " hx-d" : "";
+          hx += '<span class="hx-b' + d + '" data-o="' + o + '">' + hex2(data[o]) + "</span>";
+          asc += '<span class="hx-a' + d + '" data-o="' + o + '">' + esc(asciiChar(data[o])) + "</span>";
+        } else {
+          hx += "  ";
+          asc += " ";
+        }
+        if (i < ROW - 1) hx += " ";
+        if (i === 7) hx += " ";
+      }
+      html += '<div class="hx-row"><span class="hx-off">' +
+              base.toString(16).padStart(8, "0") + "</span>  " + hx + "  " + asc + "</div>";
+    }
+    q(".hx-view").innerHTML = html || '<span class="hx-off">empty file</span>';
+
+    const pages = Math.max(1, Math.ceil(len / PAGE));
+    const paged = len > PAGE;
+    q(".hx-prev").style.display = paged ? "" : "none";
+    q(".hx-next").style.display = paged ? "" : "none";
+    q(".hx-goto").style.display = paged ? "" : "none";
+    q(".hx-gobtn").style.display = paged ? "" : "none";
+    q(".hx-prev").disabled = pageStart <= 0;
+    q(".hx-next").disabled = pageStart + PAGE >= len;
+    q(".hx-range").textContent = paged
+      ? "0x" + pageStart.toString(16).padStart(8, "0") + " – 0x" +
+        Math.max(pageStart, end - 1).toString(16).padStart(8, "0") +
+        "   (page " + (Math.floor(pageStart / PAGE) + 1) + " of " + pages + ")"
+      : "";
+    q(".hx-note").textContent = paged
+      ? "The whole file is kept in memory; paging only limits how much is drawn at once."
+      : "";
+    q(".hx-size").textContent = len + " bytes (0x" + len.toString(16) + ")";
+    q(".hx-dirtybadge").style.display = dirty ? "" : "none";
+    q(".hx-hint").textContent = readOnly
+      ? "read only"
+      : (dirty ? dirtySet.size + " byte" + (dirtySet.size === 1 ? "" : "s") + " changed"
+               : HINT);
+    q(".hx-save").disabled = readOnly || !dirty;
+  }
+
+  function gotoOffset(off) {
+    activeFinish = null;         /* render() is about to drop the input */
+    const len = data.length;
+    off = Math.max(0, Math.min(off, Math.max(0, len - 1)));
+    pageStart = Math.floor(off / PAGE) * PAGE;
+    render();
+    el.querySelector(".hx-view").scrollTop = 0;
+  }
+
+  /* ---- editing -------------------------------------------------------
+   * Both columns drive the same byte store. The hex column takes two hex
+   * digits per byte; the ASCII column takes one character per byte, so plain
+   * text can be typed or pasted straight in.
+   * ------------------------------------------------------------------- */
+
+  const cellFor = (kind, o) =>
+    el.querySelector("." + (kind === "hex" ? "hx-b" : "hx-a") + '[data-o="' + o + '"]');
+
+  /* Repaint one byte in both columns without rebuilding the whole page. */
+  function paintByte(o) {
+    const hexCell = cellFor("hex", o), ascCell = cellFor("ascii", o);
+    const d = dirtySet.has(o);
+    if (hexCell && !hexCell.querySelector("input")) {
+      hexCell.textContent = hex2(data[o]);
+      hexCell.classList.toggle("hx-d", d);
+    }
+    if (ascCell && !ascCell.querySelector("input")) {
+      ascCell.textContent = asciiChar(data[o]);
+      ascCell.classList.toggle("hx-d", d);
+    }
+  }
+
+  /* Header badge, footer hint and the Save button. */
+  function paintChrome() {
+    const q = sel => el.querySelector(sel);
+    q(".hx-dirtybadge").style.display = dirty ? "" : "none";
+    q(".hx-hint").textContent = readOnly
+      ? "read only"
+      : (dirty ? dirtySet.size + " byte" + (dirtySet.size === 1 ? "" : "s") + " changed"
+               : HINT);
+    q(".hx-save").disabled = readOnly || !dirty;
+  }
+
+  function setByte(o, v) {
+    if (o < 0 || o >= data.length || data[o] === (v & 0xff)) return false;
+    data[o] = v & 0xff;
+    dirtySet.add(o);
+    dirty = true;
+    return true;
+  }
+
+  /* Move the caret to another byte, paging there first if needed. */
+  function focusByte(kind, o) {
+    if (o < 0 || o >= data.length) return;
+    if (o < pageStart || o >= pageStart + PAGE) gotoOffset(o);
+    const cell = cellFor(kind, o);
+    if (cell) (kind === "hex" ? editHex : editAscii)(cell);
+  }
+
+  /* Only one cell may be under edit at a time. A real mouse click blurs the
+   * previous input, but focusByte() opens one programmatically, so close any
+   * open editor explicitly. The stored finisher uses blur semantics and never
+   * advances, so this cannot recurse. */
+  function closeActiveCell() {
+    const f = activeFinish;
+    activeFinish = null;
+    if (f) f();
+  }
+
+  /* Shared plumbing for an inline input over one cell. */
+  function makeInput(cell, kind, value, extraClass) {
+    const inp = document.createElement("input");
+    inp.className = "hx-cell" + (extraClass ? " " + extraClass : "");
+    inp.value = value;
+    inp.spellcheck = false;
+    inp.autocapitalize = "off";
+    inp.autocomplete = "off";
+    cell.textContent = "";
+    cell.appendChild(inp);
+    inp.focus();
+    inp.select();
+    return inp;
+  }
+
+  function editHex(cell) {
+    if (cell.querySelector("input")) return;
+    closeActiveCell();
+    const o = +cell.dataset.o;
+    const inp = makeInput(cell, "hex", hex2(data[o]));
+    inp.maxLength = 2;
+
+    let done = false;
+    const finish = (commitValue, advance) => {
+      if (done) return;
+      done = true;
+      if (activeFinish === selfFinish) activeFinish = null;
+      if (commitValue) {
+        const v = parseInt(inp.value, 16);
+        if (!isNaN(v)) setByte(o, v);
+      }
+      cell.textContent = hex2(data[o]);
+      cell.classList.toggle("hx-d", dirtySet.has(o));
+      paintByte(o);
+      paintChrome();
+      if (commitValue && advance) focusByte("hex", o + 1);
+    };
+
+    inp.addEventListener("input", () => {
+      inp.value = inp.value.replace(/[^0-9a-fA-F]/g, "").slice(0, 2);
+      if (inp.value.length === 2) finish(true, true);
+    });
+    inp.addEventListener("keydown", ev => {
+      if (ev.key === "Enter") { ev.preventDefault(); finish(true, false); }
+      else if (ev.key === "Escape") { ev.preventDefault(); ev.stopPropagation(); finish(false, false); }
+      else if (ev.key === "Tab") { ev.preventDefault(); finish(true, true); }
+      else if (ev.key === "ArrowRight") { ev.preventDefault(); finish(true, true); }
+      else if (ev.key === "ArrowLeft") { ev.preventDefault(); finish(true, false); focusByte("hex", o - 1); }
+    });
+    inp.addEventListener("blur", () => finish(true, false));
+
+    const selfFinish = () => finish(true, false);   /* blur semantics */
+    activeFinish = selfFinish;
+  }
+
+  function editAscii(cell) {
+    if (cell.querySelector("input")) return;
+    closeActiveCell();
+    const o = +cell.dataset.o;
+    const inp = makeInput(cell, "ascii", asciiChar(data[o]), "hx-txt");
+
+    let done = false;
+
+    /* Write a run of characters starting at `o`; returns how many bytes it
+     * covered. See encodeText() for what happens to multi-byte characters. */
+    const writeText = text => {
+      const bytes = encodeText(text, data.length - o);
+      bytes.forEach((b, i) => setByte(o + i, b));
+      return bytes.length;
+    };
+
+    const finish = (commitValue, advance, typed) => {
+      if (done) return;
+      done = true;
+      if (activeFinish === selfFinish) activeFinish = null;
+      let written = 0;
+      if (commitValue && typed !== "") written = writeText(typed !== undefined ? typed : inp.value);
+
+      cell.textContent = asciiChar(data[o]);
+      cell.classList.toggle("hx-d", dirtySet.has(o));
+      for (let i = 0; i < Math.max(1, written); i++) paintByte(o + i);
+      paintChrome();
+
+      if (commitValue && advance) focusByte("ascii", o + Math.max(1, written));
+    };
+
+    /* Typing a character (or pasting several) commits immediately and moves
+     * on, so a whole string can just be typed into the file. */
+    inp.addEventListener("input", () => {
+      const v = inp.value;
+      if (v.length === 0) return;
+      finish(true, true, v);
+    });
+    inp.addEventListener("keydown", ev => {
+      if (ev.key === "Enter") { ev.preventDefault(); finish(true, false); }
+      else if (ev.key === "Escape") { ev.preventDefault(); ev.stopPropagation(); finish(false, false, ""); }
+      else if (ev.key === "Tab") { ev.preventDefault(); finish(true, true); }
+      else if (ev.key === "ArrowRight") { ev.preventDefault(); finish(false, false, ""); focusByte("ascii", o + 1); }
+      else if (ev.key === "ArrowLeft") { ev.preventDefault(); finish(false, false, ""); focusByte("ascii", o - 1); }
+      else if (ev.key === "Backspace") { ev.preventDefault(); finish(false, false, ""); focusByte("ascii", o - 1); }
+    });
+    inp.addEventListener("blur", () => finish(false, false, ""));
+
+    const selfFinish = () => finish(false, false, "");   /* blur semantics */
+    activeFinish = selfFinish;
+  }
+
+  function commit() {
+    if (readOnly || !dirty || !onSave) return;
+    const fn = onSave;
+    const bytes = data;
+    close(false);
+    fn(bytes);
+  }
+
+  function close(confirmIfDirty) {
+    if (confirmIfDirty && dirty &&
+        !confirm("Discard the edits you made to these bytes?")) return;
+    closeActiveCell();
+    el.classList.remove("hx-on");
+    data = null;
+    onSave = null;
+    dirty = false;
+    dirtySet.clear();
+  }
+
+  function open(opts) {
+    if (!el) build();
+    data = opts.data instanceof Uint8Array ? opts.data.slice() : new Uint8Array(opts.data || 0);
+    onSave = opts.onSave || null;
+    readOnly = !!opts.readOnly || !onSave;
+    dirty = false;
+    dirtySet.clear();
+    pageStart = 0;
+
+    el.querySelector(".hx-title").textContent = opts.title || "Hex editor";
+    el.querySelector(".hx-sub").textContent = opts.subtitle || "";
+    el.querySelector(".hx-save").style.display = readOnly ? "none" : "";
+    el.querySelector(".hx-cancel").textContent = readOnly ? "Close" : "Cancel";
+    el.querySelector(".hx-view").classList.toggle("hx-ro", readOnly);
+
+    render();
+    el.classList.add("hx-on");
+  }
+
+  return { open, close: () => close(false), PAGE, encodeText };
+});
+/* ===== END inlined copy of web/hexedit.js ============================ */
+
+/* =====================================================================
+ * UI
+ * ===================================================================== */
+const $ = id => document.getElementById(id);
+
+const COPYRIGHT = "DCVMU-TOOL by Bucanero";
+
+let state = { open: false, fileName: "vmu.bin", dirty: false };
+let iconTimer = null;
+let iconCanvases = [];
+let fileList = [];
+
+function toast(msg, kind) {
+  const el = document.createElement("div");
+  el.className = "toast" + (kind ? " " + kind : "");
+  el.textContent = msg;
+  $("toasts").appendChild(el);
+  setTimeout(() => {
+    el.style.transition = "opacity .3s";
+    el.style.opacity = "0";
+    setTimeout(() => el.remove(), 300);
+  }, 3600);
+}
+
+function saveBlob(blob, name) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 4000);
+}
+
+function download(bytes, name, quiet) {
+  saveBlob(new Blob([bytes], { type: "application/octet-stream" }), name);
+  if (!quiet) toast("Downloaded " + name, "ok");
+}
+
+function markDirty() {
+  state.dirty = true;
+  $("card-dirty").style.display = "";
+}
+
+function baseName() {
+  return state.fileName.replace(/^.*[\\/]/, "").replace(/\.[^.]*$/, "") || "vmu";
+}
+function safeName(s, fallback) {
+  const t = (s || "").replace(/[^A-Za-z0-9._-]/g, "_").replace(/^_+|_+$/g, "");
+  return t || fallback;
+}
+
+/* BCD timestamp as shown by the CLI: the digits are the hex digits */
+function fmtDate(ts, withTime) {
+  const h = v => v.toString(16).padStart(2, "0");
+  let s = h(ts[0]) + h(ts[1]) + "-" + h(ts[2]) + "-" + h(ts[3]);
+  if (withTime) s += " " + h(ts[4]) + ":" + h(ts[5]);
+  return s;
+}
+
+/* ---- rendering ------------------------------------------------------ */
+function render() {
+  const st = VMU.stats();
+  const root = VMU.root;
+  fileList = VMU.files();
+
+  $("st-used").textContent = st.used;
+  $("st-free").textContent = st.free;
+  $("st-files").textContent = st.files;
+  $("st-dir").textContent = st.dirFree;
+  $("st-date").textContent = root.formatted ? fmtDate(root.timestamp, false) : "no signature";
+  $("card-name").textContent = state.fileName;
+  $("card-format").textContent = VMU.dcm ? "DCM (Nexus)" : "RAW";
+
+  const cc = $("card-color");
+  if (root.customColor) {
+    const c = root.color;
+    const hex = "#" + [c.r, c.g, c.b].map(v => v.toString(16).padStart(2, "0")).join("");
+    cc.innerHTML = '<span class="swatch"></span> ' + hex;
+    cc.querySelector(".swatch").style.background = hex;
+    cc.title = "Custom VMU colour (alpha " + c.a + ")";
+    cc.style.display = "";
+  } else {
+    cc.style.display = "none";
+  }
+
+  renderMap();
+  renderGrid();
+}
+
+function renderMap() {
+  const map = VMU.blockMap(fileList);
+  const byIdx = {};
+  for (const f of fileList) byIdx[f.idx] = f;
+
+  /* neighbouring files alternate shades, so their boundaries show */
+  const shade = {};
+  fileList.forEach((f, n) => { shade[f.idx] = n & 1; });
+
+  const el = $("bmap");
+  el.innerHTML = "";
+  map.forEach((m, i) => {
+    const d = document.createElement("div");
+    d.className = "b k-" + m.kind + (m.owner >= 0 && shade[m.owner] ? " alt" : "");
+    d.dataset.owner = m.owner;
+    let tip = { free: "free", hid: "unused by the BIOS", dir: "directory", sys: i === 255 ? "root block" : "FAT",
+                bad: "allocated, no readable owner" }[m.kind] || "";
+    if (m.owner >= 0) {
+      const f = byIdx[m.owner];
+      tip = f.name + (f.vms && f.vms.descDc ? " — " + f.vms.descDc : "");
+    }
+    d.title = "Block " + i + " — " + tip;
+    el.appendChild(d);
+  });
+}
+
+function highlight(idx) {
+  const el = $("bmap");
+  el.classList.toggle("hl-on", idx >= 0);
+  el.querySelectorAll(".b").forEach(b => b.classList.toggle("hl", idx >= 0 && +b.dataset.owner === idx));
+}
+
+function mkBtn(label, cls, fn) {
+  const b = document.createElement("button");
+  b.className = cls || "";
+  b.textContent = label;
+  b.addEventListener("click", fn);
+  return b;
+}
+
+function chip(text, cls) {
+  const b = document.createElement("span");
+  b.className = "badge" + (cls ? " " + cls : "");
+  b.textContent = text;
+  return b;
+}
+
+/* The frames to animate for a file: its VMS icons, or ICONDATA's icon */
+function iconFrames(f) {
+  if (f.isIcondata && f.data) {
+    const px = VMU.icondataRGBA(f.data, 1) || VMU.icondataRGBA(f.data, 0);
+    return px ? [px] : [];
+  }
+  if (!f.vms) return [];
+  const out = [];
+  for (let i = 0; i < f.vms.icons; i++) out.push(VMU.iconRGBA(f.vms, i));
+  return out;
+}
+
+function renderGrid() {
+  const grid = $("grid");
+  grid.innerHTML = "";
+  iconCanvases = [];
+
+  for (const f of fileList) {
+    const card = document.createElement("div");
+    card.className = "save" + (f.broken ? " broken" : "");
+    card.addEventListener("mouseenter", () => highlight(f.idx));
+    card.addEventListener("mouseleave", () => highlight(-1));
+
+    const frames = iconFrames(f);
+    if (frames.length) {
+      const cv = document.createElement("canvas");
+      cv.width = 32; cv.height = 32;
+      card.appendChild(cv);
+      const ctx = cv.getContext("2d");
+      const imgs = frames.map(px => new ImageData(px, 32, 32));
+      ctx.putImageData(imgs[0], 0, 0);
+      if (imgs.length > 1) {
+        /* the same frame time the exported GIF carries */
+        iconCanvases.push({ ctx, frames: imgs, ms: VMU.iconDelay(f.vms) * 10, frame: 0, last: 0 });
+      }
+    } else {
+      const ph = document.createElement("div");
+      ph.className = "noicon";
+      ph.textContent = f.broken ? "!" : (f.filetype === VMU.GAME ? "▶" : "?");
+      card.appendChild(ph);
+    }
+
+    const body = document.createElement("div");
+    body.className = "body";
+
+    const title = document.createElement("div");
+    title.className = "title";
+    title.textContent = f.broken ? "Damaged file"
+                      : f.isIcondata ? "Card icon"
+                      : (f.vms && f.vms.descDc) || f.name;
+    title.title = title.textContent;
+    body.appendChild(title);
+
+    /* some games fill the creator field with zeros rather than a name */
+    const appId = f.vms && !/^0*$/.test(f.vms.appId) ? f.vms.appId : "";
+    if (f.vms && (f.vms.descVms || appId)) {
+      const sub = document.createElement("div");
+      sub.className = "sub";
+      sub.textContent = [f.vms.descVms, appId].filter(Boolean).join(" · ");
+      sub.title = "VMU LCD text" + (appId ? " · created by " + appId : "");
+      body.appendChild(sub);
+    }
+
+    const fname = document.createElement("div");
+    fname.className = "fname";
+    fname.textContent = f.name;
+    body.appendChild(fname);
+
+    const meta = document.createElement("div");
+    meta.className = "meta";
+    meta.appendChild(chip(f.filetype === VMU.GAME ? "game" : "data", f.filetype === VMU.GAME ? "game" : ""));
+    meta.appendChild(chip(f.filesize + (f.filesize === 1 ? " block" : " blocks")));
+    meta.appendChild(chip(fmtDate(f.timestamp, true)));
+    if (f.copyprotect === VMU.PROTECTED) meta.appendChild(chip("copy protected"));
+    if (f.vms && f.vms.eyecatch) meta.appendChild(chip("eyecatch"));
+    if (f.broken) meta.appendChild(chip("broken FAT chain", "bad"));
+    if (f.crcUnset) meta.appendChild(chip("no CRC"));
+    else if (f.crcOk === false) meta.appendChild(chip("CRC mismatch", "warn"));
+    body.appendChild(meta);
+
+    const acts = document.createElement("div");
+    acts.className = "acts";
+    if (!f.broken) {
+      acts.appendChild(mkBtn("Export ▾", "tiny", ev => exportMenu(ev.currentTarget, f)));
+      acts.appendChild(mkBtn("Hex", "tiny", () => openHexEditor(f)));
+      acts.appendChild(mkBtn("Rename", "tiny", () => renameFile(f)));
+      if (f.crcOk === false) acts.appendChild(mkBtn("Fix CRC", "tiny warnbtn", () => {
+        if (VMU.fixCrc(f.idx)) { markDirty(); render(); toast("Recomputed the CRC of " + f.name, "ok"); }
+        else toast("The header's data size runs past the end of the file", "err");
+      }));
+    }
+    acts.appendChild(mkBtn("Remove", "tiny danger", () => {
+      if (!confirm("Permanently erase \"" + f.name + "\" from this card?\n\nThe file on disk is untouched until you download the card.")) return;
+      VMU.deleteFile(f.idx); markDirty(); render();
+      toast("Removed " + f.name);
+    }));
+    body.appendChild(acts);
+
+    card.appendChild(body);
+    grid.appendChild(card);
+  }
+
+  $("grid-empty").style.display = fileList.length ? "none" : "";
+  startIconAnimation();
+}
+
+function startIconAnimation() {
+  if (iconTimer) cancelAnimationFrame(iconTimer);
+  iconTimer = null;
+  if (!iconCanvases.length) return;
+  const step = t => {
+    for (const ic of iconCanvases) {
+      if (!ic.last) ic.last = t;
+      if (t - ic.last < ic.ms) continue;
+      ic.last = t;
+      ic.frame = (ic.frame + 1) % ic.frames.length;
+      ic.ctx.putImageData(ic.frames[ic.frame], 0, 0);
+    }
+    iconTimer = requestAnimationFrame(step);
+  };
+  iconTimer = requestAnimationFrame(step);
+}
+
+/* ---- popup menus ---------------------------------------------------- */
+function closeMenus() {
+  document.querySelectorAll(".menu").forEach(m => m.remove());
+}
+document.addEventListener("click", e => {
+  if (!e.target.closest(".menu") && !e.target.closest("[data-menu-owner]")) closeMenus();
+});
+
+function popMenu(anchor, items) {
+  const wasOpen = anchor.hasAttribute("data-menu-owner");
+  closeMenus();
+  document.querySelectorAll("[data-menu-owner]").forEach(a => a.removeAttribute("data-menu-owner"));
+  if (wasOpen) return;
+  anchor.setAttribute("data-menu-owner", "1");
+
+  const menu = document.createElement("div");
+  menu.className = "menu";
+  for (const it of items) {
+    if (it.sep) { const d = document.createElement("div"); d.className = "sep"; menu.appendChild(d); continue; }
+    if (it.label) { const d = document.createElement("div"); d.className = "lbl"; d.textContent = it.label; menu.appendChild(d); continue; }
+    menu.appendChild(mkBtn(it.text, "", () => { closeMenus(); anchor.removeAttribute("data-menu-owner"); it.fn(); }));
+  }
+  let wrap = anchor.parentElement;
+  if (!wrap.classList.contains("menuwrap")) {
+    wrap = document.createElement("span");
+    wrap.className = "menuwrap";
+    anchor.parentElement.insertBefore(wrap, anchor);
+    wrap.appendChild(anchor);
+  }
+  wrap.appendChild(menu);
+
+  // keep the menu on screen
+  requestAnimationFrame(() => {
+    const r = menu.getBoundingClientRect();
+    if (r.right > window.innerWidth - 8) menu.style.left = "auto", menu.style.right = "0";
+  });
+}
+
+/* The VMI names its VMS through an 8-character resource name */
+function resourceName(f) {
+  return (f.name.toUpperCase().replace(/[^A-Z0-9_]/g, "") || "VMUFILE").slice(0, 8);
+}
+
+function exportMenu(anchor, f) {
+  const base = safeName(f.name, "vmufile");
+  const items = [
+    { label: "Export file as" },
+    { text: "Nexus  (.dci)", fn: () => download(VMU.dciEncode(f.idx), base + ".dci") },
+    { text: "VMI + VMS  (web browser)", fn: () => exportVmi(f) },
+    { text: "Raw file  (.vms)", fn: () => download(VMU.readFile(f.idx), base + ".vms") },
+    { sep: true },
+    { label: "Images" }
+  ];
+  const frames = iconFrames(f);
+  if (f.isIcondata) {
+    items.push({ text: "Icon (.gif)", fn: () => download(VMU.icondataGif(f.data), base + ".gif") });
+    if (VMU.icondataRGBA(f.data, 0)) items.push({ text: "Monochrome icon (.png)", fn: () => exportPng(VMU.icondataRGBA(f.data, 0), 32, 32, base + "_mono.png") });
+    if (VMU.icondataRGBA(f.data, 1)) items.push({ text: "Colour icon (.png)", fn: () => exportPng(VMU.icondataRGBA(f.data, 1), 32, 32, base + "_color.png") });
+  } else if (frames.length) {
+    items.push({ text: frames.length > 1 ? "Animated icon (.gif)" : "Icon (.gif)",
+                 fn: () => download(VMU.iconGif(f.vms), base + ".gif") });
+    items.push({ text: "Icon frames (.png)", fn: () => {
+      frames.forEach((px, i) => exportPng(px, 32, 32, base + "_icon" + i + ".png", true));
+      toast("Exported " + frames.length + " icon PNG(s)", "ok");
+    } });
+  }
+  if (f.vms && f.vms.eyecatch)
+    items.push({ text: "Eyecatch (.png)", fn: () => exportPng(VMU.eyecatchRGBA(f.vms), 72, 56, base + "_eyecatch.png") });
+  if (items[items.length - 1].label) items.push({ text: "no images in this file", fn: () => {} });
+  popMenu(anchor, items);
+}
+
+function exportVmi(f) {
+  const res = resourceName(f);
+  const r = VMU.vmiEncode(f.idx, res, COPYRIGHT);
+  download(r.vms, res + ".VMS", true);
+  download(r.vmi, res + ".VMI", true);
+  toast("Downloaded " + res + ".VMI and " + res + ".VMS", "ok");
+}
+
+function exportPng(px, w, h, name, quiet) {
+  const cv = document.createElement("canvas");
+  cv.width = w; cv.height = h;
+  cv.getContext("2d").putImageData(new ImageData(px, w, h), 0, 0);
+  cv.toBlob(b => saveBlob(b, name), "image/png");
+  if (!quiet) toast("Exported " + name, "ok");
+}
+
+/** Hex-edit a file's blocks in place: same length, same chain. */
+function openHexEditor(f) {
+  HexEdit.open({
+    title: (f.vms && f.vms.descDc) || f.name,
+    subtitle: f.name + " · " + f.filesize + (f.filesize === 1 ? " block" : " blocks"),
+    data: VMU.readFile(f.idx),
+    onSave: edited => {
+      if (!VMU.writeFileData(f.idx, edited)) {
+        toast("Edited data is the wrong size for this file", "err");
+        return;
+      }
+      markDirty();
+      render();
+      toast("Saved changes to " + f.name, "ok");
+      const now = fileList.find(x => x.idx === f.idx);
+      if (now && f.crcOk && now.crcOk === false)
+        toast("The file's CRC no longer matches its contents — use Fix CRC, or the game may reject it.", "warn");
+    }
+  });
+}
+
+function renameFile(f) {
+  const name = prompt("New name for \"" + f.name + "\" (up to 12 characters):", f.name);
+  if (name === null || name === f.name) return;
+  try {
+    VMU.renameFile(f.idx, name);
+  } catch (e) {
+    toast(e.message, "err");
+    return;
+  }
+  markDirty(); render();
+  toast("Renamed to " + name, "ok");
+}
+
+/* ---- card open / close ---------------------------------------------- */
+function showCard() {
+  state.open = true;
+  $("dropzone").style.display = "none";
+  $("cardview").classList.add("on");
+  render();
+}
+
+function closeCard() {
+  if (state.dirty && !confirm("This card has unsaved changes. Close anyway?")) return;
+  state.open = false; state.dirty = false;
+  $("card-dirty").style.display = "none";
+  $("cardview").classList.remove("on");
+  $("dropzone").style.display = "";
+  if (iconTimer) cancelAnimationFrame(iconTimer);
+  iconTimer = null;
+}
+
+function readFile(file) {
+  return new Promise((resolve, reject) => {
+    const fr = new FileReader();
+    fr.onload = () => resolve(new Uint8Array(fr.result));
+    fr.onerror = () => reject(new Error("Could not read " + file.name));
+    fr.readAsArrayBuffer(file);
+  });
+}
+
+async function loadCardFile(file) {
+  let bytes;
+  try { bytes = await readFile(file); } catch (e) { toast(e.message, "err"); return; }
+
+  const r = VMU.open(bytes, file.name);
+  if (!r.ok) {
+    if (r.reason === VMU.ERR.FORMAT &&
+        confirm(file.name + " holds no formatted VMU filesystem.\n\nOpen it as a freshly formatted card instead?")) {
+      VMU.format();
+    } else {
+      if (r.reason !== VMU.ERR.FORMAT) toast("Not a Dreamcast VMU image (" + r.reason + ")", "err");
+      return;
+    }
+    state.dirty = true;
+  } else {
+    state.dirty = false;
+  }
+  state.fileName = file.name;
+  $("card-dirty").style.display = state.dirty ? "" : "none";
+  showCard();
+  toast("Opened " + file.name + (VMU.dcm ? " — Nexus byte order" : ""), "ok");
+}
+
+/* Add one file to the card, reporting what went in */
+function addFile(ent, data, label) {
+  try {
+    const w = VMU.writeFile(ent, data);
+    toast("Imported " + label + " as " + w.name + " (" + w.filesize + " block" + (w.filesize > 1 ? "s" : "") + ")", "ok");
+    return true;
+  } catch (e) {
+    toast(label + ": " + e.message, "err");
+    return false;
+  }
+}
+
+/*
+ * Import whatever was picked or dropped. A .VMI needs its .VMS, which the
+ * VMI names by resource; they are paired up here, so pick (or drop) both at
+ * once. A .VMS with no .VMI has no metadata and goes in as a raw data file.
+ */
+async function importFiles(list) {
+  const files = [];
+  for (const f of list) {
+    try { files.push({ name: f.name, bytes: await readFile(f) }); }
+    catch (e) { toast(e.message, "err"); }
+  }
+
+  const stem = n => n.replace(/^.*[\\/]/, "").replace(/\.[^.]*$/, "").toUpperCase();
+  const vmsFiles = files.filter(f => /\.vms$/i.test(f.name));
+  const usedVms = new Set();
+  let changed = false;
+
+  for (const f of files) {
+    if (/\.dci$/i.test(f.name)) {
+      const d = VMU.dciDecode(f.bytes);
+      if (!d) { toast(f.name + " is not a valid DCI file", "err"); continue; }
+      changed = addFile(d.ent, d.data, f.name) || changed;
+    }
+    else if (/\.vmi$/i.test(f.name)) {
+      const d = VMU.vmiDecode(f.bytes);
+      if (!d) { toast(f.name + " is not a valid VMI file", "err"); continue; }
+      const vms = vmsFiles.find(v => stem(v.name) === d.info.resource.toUpperCase()) ||
+                  vmsFiles.find(v => stem(v.name) === stem(f.name));
+      if (!vms) {
+        toast(f.name + " needs " + d.info.resource + ".VMS — select both files together", "err");
+        continue;
+      }
+      usedVms.add(vms);
+      if (vms.bytes.length < d.info.filesize) {
+        toast(vms.name + " holds " + vms.bytes.length + " bytes, the VMI expects " + d.info.filesize, "err");
+        continue;
+      }
+      if (!d.info.checksumOk)
+        toast(f.name + ": the VMI checksum does not match its resource name — importing anyway.", "warn");
+      changed = addFile(d.ent, vms.bytes.subarray(0, d.info.filesize), f.name) || changed;
+    }
+    else if (!/\.vms$/i.test(f.name)) {
+      toast(f.name + ": unsupported save format (expected .DCI, or .VMI with its .VMS)", "err");
+    }
+  }
+
+  for (const v of vmsFiles) {
+    if (usedVms.has(v)) continue;
+    const name = prompt(v.name + " carries no directory entry.\n\nImport it as a data file named (up to 12 characters):",
+                        stem(v.name).slice(0, VMU.NAME));
+    if (!name) continue;
+    changed = addFile({ name, filetype: VMU.DATA, copyprotect: 0, hdroff: 0, timestamp: VMU.now() },
+                      v.bytes, v.name) || changed;
+  }
+
+  if (changed) { markDirty(); render(); }
+}
+
+/* ---- wiring ---------------------------------------------------------- */
+$("btn-open").addEventListener("click", () => $("file-card").click());
+$("file-card").addEventListener("change", e => {
+  if (e.target.files[0]) loadCardFile(e.target.files[0]);
+  e.target.value = "";
+});
+
+$("btn-new").addEventListener("click", () => {
+  VMU.create();
+  state.fileName = "new-vmu.bin";
+  state.dirty = true;
+  showCard();
+  $("card-dirty").style.display = "";
+  toast("Created a blank formatted card", "ok");
+});
+
+$("btn-close").addEventListener("click", closeCard);
+
+$("btn-import").addEventListener("click", () => $("file-save").click());
+$("file-save").addEventListener("change", e => {
+  if (e.target.files.length) importFiles(Array.from(e.target.files));
+  e.target.value = "";
+});
+
+$("btn-savecard").addEventListener("click", e => {
+  const base = baseName();
+  const saved = () => { state.dirty = false; $("card-dirty").style.display = "none"; };
+  popMenu(e.currentTarget, [
+    { label: "Download card as" },
+    { text: "Raw image  (.bin)", fn: () => { download(VMU.exportCard(false), base + ".bin"); saved(); } },
+    { text: "Nexus  (.dcm)", fn: () => { download(VMU.exportCard(true), base + ".dcm"); saved(); } }
+  ]);
+});
+
+$("btn-format").addEventListener("click", () => {
+  if (!confirm("Erase every file on this card?\n\nThe file on disk is untouched until you download the card.")) return;
+  VMU.format();
+  markDirty(); render();
+  toast("Card formatted");
+});
+
+/* drag & drop anywhere on the page */
+const dz = $("dropzone");
+["dragenter", "dragover"].forEach(ev => document.addEventListener(ev, e => {
+  e.preventDefault();
+  if (!state.open) dz.classList.add("over");
+}));
+["dragleave", "drop"].forEach(ev => document.addEventListener(ev, e => {
+  e.preventDefault();
+  dz.classList.remove("over");
+}));
+document.addEventListener("drop", e => {
+  const files = Array.from(e.dataTransfer.files);
+  if (!files.length) return;
+  // A card is exactly 128 KB; anything else dropped onto an open card is a save.
+  if (state.open && !(files.length === 1 && files[0].size === VMU.SIZE && !/\.vms$/i.test(files[0].name)))
+    importFiles(files);
+  else loadCardFile(files[0]);
+});
+
+window.addEventListener("beforeunload", e => {
+  if (state.dirty) { e.preventDefault(); e.returnValue = ""; }
+});
+</script>
+</body>
+</html>

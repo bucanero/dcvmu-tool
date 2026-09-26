@@ -1,0 +1,83 @@
+name: Build Windows binaries
+
+on:
+  push:
+  pull_request:
+  repository_dispatch:
+    types: [run_build]
+
+jobs:
+  # The Windows binary is cross-compiled on Linux with mingw-w64.
+  #
+  # MSYS2 is deliberately not used, as in ps2vmc-tool: its MINGW32 target has
+  # silently produced x86-64 binaries under a 32-bit name. The tool has no
+  # dependencies, so the apt toolchain alone is all it needs.
+  #
+  # These jobs only check that the binary built and is the right shape. The
+  # functional smoke test lives in build.yml, which produces a native binary
+  # the runner can actually execute.
+  cross:
+    runs-on: ubuntu-latest
+    name: Windows ${{ matrix.arch }} (Linux cross)
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            tc: x86_64-w64-mingw32
+            gcc: gcc-mingw-w64-x86-64
+            pe: "PE32+ executable"
+            machine: x86-64
+          - arch: x86
+            tc: i686-w64-mingw32
+            gcc: gcc-mingw-w64-i686
+            pe: "PE32 executable"
+            machine: "80386"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install the mingw cross toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ${{ matrix.gcc }}
+
+      # EXE is set explicitly: the Makefile only appends .exe when $(OS) says
+      # Windows_NT, which it does not on the Linux runner.
+      - name: Build binaries
+        run: |
+          make CC=${{ matrix.tc }}-gcc EXE=.exe
+
+      # The architecture is asserted, not just printed: a wrong-architecture
+      # binary under the right name would otherwise go unnoticed.
+      # "PE32 executable" matches only 32-bit; a 64-bit one reads "PE32+".
+      - name: Check the binaries are ${{ matrix.arch }}
+        run: |
+          file dcvmu-tool.exe
+          for f in dcvmu-tool.exe; do
+            file "$f" | grep -q "${{ matrix.pe }}" &&
+            file "$f" | grep -q "${{ matrix.machine }}" || {
+              echo "::error::$f is not ${{ matrix.arch }}: $(file -b "$f")"; exit 1; }
+          done
+
+      # An artifact that needs a DLL we do not ship is broken for whoever
+      # downloads it, and nothing else here would notice. Only what every
+      # Windows install has is allowed: KERNEL32 and the C runtime.
+      - name: Check only system DLLs are needed
+        run: |
+          for f in dcvmu-tool.exe; do
+            other=$(${{ matrix.tc }}-objdump -p "$f" | sed -n 's/.*DLL Name: //p' |
+                    grep -viE '^(kernel32|msvcrt|ucrtbase)\.dll$|^api-ms-win-' || true)
+            if [ -n "$other" ]; then
+              echo "::error::$f needs DLLs we do not ship: $other"; exit 1
+            fi
+          done
+          echo "only system DLLs"
+
+      - name: Get short SHA
+        run: echo "sha_name=$(echo ${GITHUB_SHA} | cut -c1-8)" >> $GITHUB_ENV
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: build-${{ env.sha_name }}-win-${{ matrix.arch }}
+          path: |
+            dcvmu-tool.exe

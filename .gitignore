@@ -53,3 +53,9 @@ dkms.conf
 
 # debug information files
 *.dwo
+
+# The tool itself
+dcvmu-tool
+
+# GitHub Pages staging dir
+_site/

@@ -1,0 +1,106 @@
+name: Build binaries
+
+on:
+  push:
+  pull_request:
+  repository_dispatch:
+    types: [run_build]
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    # No dependencies to install: a C compiler and make are all it needs.
+    - name: Build
+      run: |
+        make
+
+    # The binary is native, so the runner can actually execute it: the Windows
+    # jobs cross-compile, so they can only inspect what they produce. Every
+    # check below reads real output, so a command that fails, or that succeeds
+    # while printing the wrong thing, fails the build.
+    - name: Smoke test the binary
+      run: |
+        set -eo pipefail
+
+        # card info, listing, and a card of its own
+        ./dcvmu-tool samples/dcvmu.bin --mc-info | grep -q "Free 122"
+        ./dcvmu-tool samples/dcvmu.bin --list | grep -q "SONICADV_INT"
+        ./dcvmu-tool samples/dcvmu.bin --file-info SONICADV_INT | grep -q "CRC       : 049B (valid)"
+        ./dcvmu-tool new.bin --mc-create
+        ./dcvmu-tool new.bin --mc-free | grep -q "Available space: 200 Blocks"
+
+        # A DCI goes onto the card and comes back out byte for byte. The
+        # first-block field is where the file happened to land, so it is
+        # skipped: sa2.dci was the first file on its card, evo.dci was not.
+        ./dcvmu-tool new.bin --import samples/sa2.dci | grep -q "SONIC2___S01"
+        ./dcvmu-tool new.bin --import samples/evo.dci | grep -q "EVO_DATA.001"
+        ./dcvmu-tool new.bin --dci-export SONIC2___S01 dc_sa2.dci
+        cmp dc_sa2.dci samples/sa2.dci
+        ./dcvmu-tool new.bin --dci-export EVO_DATA.001 dc_evo.dci
+        cmp <(tail -c +5 dc_evo.dci) <(tail -c +5 samples/evo.dci)
+
+        # VMI/VMS round trip: out through the pair, back in, out as a DCI
+        ./dcvmu-tool new.bin --vmi-export SONIC2___S01 SONIC2 | grep -q "SONIC2.VMI"
+        ./dcvmu-tool vmi.bin --mc-create >/dev/null
+        ./dcvmu-tool vmi.bin --import SONIC2.VMI | grep -q "SONIC2___S01"
+        ./dcvmu-tool vmi.bin --dci-export SONIC2___S01 dc_vmi.dci
+        cmp dc_vmi.dci samples/sa2.dci
+        echo "  DCI and VMI/VMS round-trip exactly"
+
+        # a .dcm is the same card in the Nexus byte order, both ways
+        ./dcvmu-tool samples/dcvmu.bin --dcm-image dc.dcm
+        ./dcvmu-tool dc.dcm --raw-image dc_back.bin
+        cmp dc_back.bin samples/dcvmu.bin
+        echo "  DCM images convert both ways"
+
+        # raw files in and out, removal, and the icons
+        ./dcvmu-tool samples/dcvmu.bin --extract-file SONICADV_INT dc_int.raw
+        ./dcvmu-tool new.bin --inject-file dc_int.raw COPY_INT | grep -q "10 blocks"
+        ./dcvmu-tool new.bin --remove COPY_INT >/dev/null
+        if ./dcvmu-tool new.bin --list | grep -q COPY_INT; then
+          echo "::error::--remove left the file behind"; exit 1
+        fi
+        ./dcvmu-tool samples/dcvmu.bin --icons SONICADV_INT >/dev/null
+        test -s SONICADV_INT_icon0.png && test -s SONICADV_INT_icon1.png
+        echo "  inject, extract, remove and icons work"
+
+        # a real Nexus dump: byte order detected, a game file, the card icon,
+        # and a DCM written back byte for byte when nothing changed
+        ./dcvmu-tool samples/newvmu.DCM --mc-info | grep -q "Files     : 25"
+        ./dcvmu-tool samples/newvmu.DCM --list | grep -q "LOGIC        | GAME"
+        ./dcvmu-tool samples/newvmu.DCM --file-info CDX_CODES_00 | grep -q "(not set)"
+        ./dcvmu-tool samples/newvmu.DCM --icon-gif ICONDATA_VMS dc_card.gif | grep -q "dc_card.gif"
+        cp samples/newvmu.DCM dc_copy.bin
+        ./dcvmu-tool dc_copy.bin --rename SONIC2___S01 SONIC2___S01 >/dev/null
+        cmp dc_copy.bin samples/newvmu.DCM
+        echo "  a real Nexus card reads, and saves back unchanged"
+
+        # the animated icon: a GIF89a, looping, one frame per icon
+        ./dcvmu-tool new.bin --import samples/anim.dci >/dev/null
+        ./dcvmu-tool new.bin --icon-gif ANIMTEST.VMS dc_anim.gif | grep -q "dc_anim.gif"
+        head -c 6 dc_anim.gif | grep -q "GIF89a"
+        grep -q "NETSCAPE2.0" dc_anim.gif
+        echo "  animated icons export as GIF"
+
+        # the web page's VMU engine, against this CLI, byte for byte
+        node web/test/dctest.js | tail -1
+        echo "  the Dreamcast web page matches the CLI"
+
+        rm -f new.bin vmi.bin dc.dcm dc_back.bin dc_*.dci dc_int.raw dc_anim.gif dc_card.gif dc_copy.bin SONIC2.VMI SONIC2.VMS SONICADV_INT_icon*.png
+        echo "smoke tests passed"
+
+    - name: Get short SHA
+      run: echo "sha_name=$(echo ${GITHUB_SHA} | cut -c1-8)" >> $GITHUB_ENV
+
+    - uses: actions/upload-artifact@v4
+      with:
+        name: build-${{ env.sha_name }}-${{matrix.os}}
+        path: |
+          dcvmu-tool
