@@ -8,8 +8,14 @@
  *
  *     make && node web/test/dctest.js
  *
+ * The page's VMU emulator is checked the same way against SoftVMS 1.10, the
+ * emulator it was ported from: web/test/softvms/ holds its cpu.c, built here
+ * with a headless front end, and both run the same game with the same button
+ * presses, comparing the LCD, the flash and the tones slice by slice.
+ *
  * With DC_SAVES pointing at a directory of .VMI/.VMS saves, every one of them
- * is also run through both, e.g. a checkout of bucanero/dreamcast-saves:
+ * is also run through both, and every mini-game among them through both
+ * emulators, e.g. a checkout of bucanero/dreamcast-saves:
  *
  *     DC_SAVES=../dreamcast-saves node web/test/dctest.js
  */
@@ -19,7 +25,7 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const zlib = require("zlib");   /* Node's own, to read the PNGs back */
-const { execFileSync } = require("child_process");
+const { execFileSync, spawnSync } = require("child_process");
 
 const ROOT = path.resolve(__dirname, "..", "..");
 const CLI = path.join(ROOT, "dcvmu-tool");
@@ -43,8 +49,8 @@ const script = /<script>\n([\s\S]*?)\n<\/script>/.exec(html)[1];
 function loadCore() {
   const core = script.slice(0, script.indexOf(BEGIN));
   const tmp = path.join(TMP, "dccore.js");
-  fs.writeFileSync(tmp, core + "\nmodule.exports = { VMU };\n");
-  return require(tmp).VMU;
+  fs.writeFileSync(tmp, core + "\nmodule.exports = { VMU, VMS };\n");
+  return require(tmp);
 }
 
 function cli(...args) {
@@ -195,7 +201,7 @@ function makeIcondata(color) {
 
 function main() {
   if (!fs.existsSync(CLI)) { console.error("build the CLI first: make"); process.exit(1); }
-  const VMU = loadCore();
+  const { VMU, VMS } = loadCore();
   const sample = new Uint8Array(fs.readFileSync(path.join(SAMPLES, "dcvmu.bin")));
 
   /* ---------- the inlined editor ---------- */
@@ -530,26 +536,258 @@ function main() {
   cli(tmp("loop.bin"), "--remove", "SONIC2___S01");
   ok("and removes like the CLI", same(VMU.exportCard(false), read("loop.bin")));
 
+  const emu = emulator(VMU, VMS);
+
   /* ---------- optional: a whole collection of saves ---------- */
   /* DC_SAVES=<dir> runs every .VMI/.VMS pair under it through both the page
    * and the CLI: the same import, the same card, the same exports. */
-  if (process.env.DC_SAVES) corpus(VMU, process.env.DC_SAVES);
+  if (process.env.DC_SAVES) {
+    corpus(VMU, process.env.DC_SAVES);
+    if (emu) emulatorCorpus(VMU, VMS, process.env.DC_SAVES);
+  }
 
   fs.rmSync(TMP, { recursive: true, force: true });
   console.log("\n" + pass + " passed, " + fail + " failed");
   process.exit(fail ? 1 : 0);
 }
 
-function corpus(VMU, root) {
-  console.log("\n=== every save under " + root + " ===");
-  const pairs = [];
+/* ---------- the emulator vs SoftVMS ---------- */
+
+const SOFTVMS = path.join(ROOT, "web", "test", "softvms");
+const REF = path.join(TMP, "softvms-ref");
+
+/* SoftVMS's cpu.c as it came, with web/test/softvms/ref.c as its front end */
+function buildSoftvms() {
+  const r = spawnSync(process.env.CC || "cc", [
+    "-O2", "-w", "-DHAVE_UNISTD_H", "-DHAVE_FCNTL_H", "-DHAVE_ERRNO_H", "-DHAVE_SYS_TIME_H", "-DTIME_WITH_SYS_TIME",
+    "-DBSD_STYLE_GETTIMEOFDAY", "-DTIMEZONE_IS_VOID",
+    "-o", REF, path.join(SOFTVMS, "cpu.c"), path.join(SOFTVMS, "ref.c")
+  ], { encoding: "utf8" });
+  return r.status === 0 ? "" : (r.stderr || r.error && r.error.message || "failed").trim().split("\n")[0];
+}
+
+/* What ref.c fixes the clock at: 2001-02-03 04:05:06 UTC, a Saturday */
+const REF_DATE = { year: 2001, mon: 2, mday: 3, hour: 4, min: 5, sec: 6, wday: 6 };
+
+/* Button presses both emulators get: slice:button:state, mostly the d-pad,
+ * A and B, with A+B together now and then (many games start on A+B), and
+ * Mode and Sleep only when asked, since they usually quit the game. */
+function keyScript(seed, total, withMode) {
+  let s = seed >>> 0;
+  const rnd = n => { s = (Math.imul(s, 1103515245) + 12345) >>> 0; return (s >>> 16) % n; };
+  const out = [];
+  for (let t = 30; t < total - 20 && out.length < 250; ) {
+    const len = 3 + rnd(12);
+    const r = rnd(40);
+    const keys = withMode && r === 0 ? [6 + rnd(2)] : r < 6 ? [4, 5] : [rnd(6)];
+    for (const k of keys) out.push(t + ":" + k + ":1", (t + len) + ":" + k + ":0");
+    t += len + 2 + rnd(30);
+  }
+  return out.join(",");
+}
+
+const fnv = (b, h = 2166136261) => { for (const x of b) h = Math.imul(h ^ x, 16777619) >>> 0; return h; };
+const hex8 = v => v.toString(16).padStart(8, "0");
+
+/* ref.c's output, from the page's emulator */
+function emulate(VMS, bytes, name, total, every, keys) {
+  const ks = keys.split(",").filter(Boolean).map(k => k.split(":").map(Number));
+  const out = [];
+  let slice = 0, tones = 2166136261, stop = false;
+  const lcd = tag => {
+    let s = tag + " " + slice + " ";
+    for (let y = 0; y < VMS.H; y++)
+      for (let x = 0; x < VMS.W; x += 8) {
+        let b = 0;
+        for (let i = 0; i < 8; i++) b = (b << 1) | VMS.lcd[y * VMS.W + x + i];
+        s += b.toString(16).padStart(2, "0");
+      }
+    out.push(s);
+  };
+  const finish = why => { lcd("L"); out.push("E " + why + " " + slice, "F " + hex8(fnv(VMS.flash)), "T " + hex8(tones)); };
+  VMS.hooks.redraw = VMS.hooks.error = null;
+  VMS.hooks.sound = f => {
+    const ev = [slice, slice >> 8, slice >> 16, slice >>> 24, f, f >> 8, f >> 16, f >> 24].map(v => v & 0xff);
+    tones = Math.imul(tones ^ fnv(ev), 16777619) >>> 0;
+  };
+  VMS.setBios(null);
+  if (!VMS.load(bytes, name, REF_DATE)) return "";
+  VMS.reset(REF_DATE);
+  VMS.run(total, () => {
+    if (stop) return;
+    slice++;
+    for (const [at, k, d] of ks) if (at === slice) VMS.key(k, d);
+    if (every && slice % every === 0) lcd("S");
+    if (slice >= total) { finish("done"); stop = true; }
+  });
+  if (!stop) finish("exit");
+  return out.join("\n") + "\n";
+}
+
+function softvms(file, total, every, keys) {
+  return execFileSync(REF, [file, String(total), String(every), keys],
+                      { env: { TZ: "UTC" }, encoding: "latin1" });
+}
+
+/* Run a flash image through both; "" when they agree, else where they part */
+function sameRun(VMS, bytes, name, total, every, keys) {
+  const file = tmp(name);
+  fs.writeFileSync(file, bytes);
+  const a = softvms(file, total, every, keys), b = emulate(VMS, bytes, file, total, every, keys);
+  if (a === b) return { diff: "", out: a };
+  const al = a.split("\n"), bl = b.split("\n");
+  const i = al.findIndex((l, n) => l !== bl[n]);
+  return { diff: "first differs at: " + (al[i] || "(end)").slice(0, 24) + " vs " + (bl[i] || "(end)").slice(0, 24), out: a };
+}
+
+/* A test program for both emulators: every arithmetic and compare
+ * instruction over all 256 values of ACC, with the carry in both states,
+ * each result (ACC and PSW, and B and C for MUL/DIV) written to flash with
+ * STF, where the final flash hash sees every one of them. */
+function flagProgram() {
+  const K = [0x00, 0x01, 0x0f, 0x10, 0x7f, 0x80, 0x9c, 0xff];
+  const ops = [];
+  for (const k of K) {
+    ops.push([0x81, k], [0x91, k], [0xa1, k], [0xb1, k]);          /* ADD/ADDC/SUB/SUBC #k */
+    ops.push([0x31, k, 0x00], [0x41, k, 0x00]);                    /* BE/BNE #k: CY */
+  }
+  ops.push([0x82, 0x31], [0x92, 0x31], [0xa2, 0x31], [0xb2, 0x31]); /* the same with d9 */
+  ops.push([0xc0], [0xd0], [0xe0], [0xf0]);                         /* ROR RORC ROL ROLC */
+  const muldiv = [];
+  for (const [b, c] of [[0x00, 0x00], [0x03, 0x7f], [0xff, 0xff], [0x10, 0x01], [0x10, 0x00]])
+    muldiv.push([0x30, b, c], [0x40, b, c]);
+  const code = [0x21, 0x02, 0x00];                                   /* JMPF 0x200, past the vectors */
+  while (code.length < 0x200) code.push(code.length % 8 === 3 ? 0xb0 : 0x00);   /* RETI at each vector */
+  code.push(0x23, 0x08, 0x00);                                       /* MOV #0, IE: no interrupts */
+  code.push(0x22, 0x31, 0x5a);                                       /* MOV #5a, 0x31: the d9 operand */
+  let page = 0x40;
+  const block = (op, pre, extra) => {
+    const hi = page++;
+    code.push(0x22, 0x30, 0x00);                                     /* MOV #0, n */
+    const loop = code.length;
+    code.push(0x23, 0x05, hi, 0x23, 0x54, 0x00);                     /* TRH = page, FPR = 0 */
+    code.push(0x02, 0x30, 0x13, 0x04);                               /* LD n; ST TRL */
+    code.push(0xd0, 0x02, 0x30);                                     /* RORC: CY = n & 1; LD n */
+    code.push(...pre, ...op);
+    code.push(0x51, 0x03, 0x01, 0x63, 0x54, 0x51);                   /* STF ACC; LD PSW; INC FPR; STF */
+    if (extra) {
+      const hi2 = page++;
+      code.push(0x03, 0x02, 0x23, 0x05, hi2, 0x23, 0x54, 0x00, 0x51);    /* LD B; TRH = page2; STF */
+      code.push(0x03, 0x03, 0x63, 0x54, 0x51);                            /* LD C; INC FPR; STF */
+    }
+    code.push(0x62, 0x30, 0x02, 0x30);                               /* INC n; LD n */
+    const rel = loop - (code.length + 2);
+    code.push(0x90, rel & 0xff);                                     /* BNZ loop */
+    if (rel < -128) throw new Error("block too long");
+  };
+  for (const op of ops) block(op, []);
+  for (const [op, b, c] of muldiv) block([op], [0x23, 0x02, b, 0x23, 0x03, c], true);
+  /* then time the base timer's interrupts, the 0.5 s tick: the main loop
+   * counts, and each tick writes the count it reached to flash */
+  code.push(0x22, 0x32, 0x00, 0x22, 0x33, 0x00, 0x22, 0x34, 0x00, 0x23, 0x54, 0x00);
+  code.push(0x23, 0x08, 0x80);                                       /* MOV #80, IE */
+  code.push(0x62, 0x33, 0x02, 0x33, 0x90, 0xfa, 0x62, 0x34, 0x01, 0xf6);   /* 16-bit count, forever */
+  const tick = code.length;
+  code.push(0x61, 0x00, 0x61, 0x01);                                 /* PUSH ACC, PSW */
+  code.push(0x02, 0x32, 0x13, 0x04, 0x23, 0x05, 0x30);               /* TRL = ticks, TRH = 30 */
+  code.push(0x02, 0x33, 0x51, 0x02, 0x34, 0x63, 0x54, 0x51, 0x73, 0x54);   /* STF lo, hi in bank 1 */
+  code.push(0x62, 0x32, 0x71, 0x01, 0x71, 0x00, 0xb0);               /* ticks++; POP; RETI */
+  code.splice(0x1b, 3, 0x21, tick >> 8, tick & 0xff);                /* the tick's vector: JMPF */
+  const out = new Uint8Array(Math.max(0x800, code.length));
+  out.set(code);
+  return out;
+}
+
+function emulator(VMU, VMS) {
+  console.log("\n=== VMU emulator vs SoftVMS 1.10 ===");
+  const err = buildSoftvms();
+  ok("SoftVMS builds with the headless front end", !err, err);
+  if (err) return false;
+
+  /* LOGIC is the game on newvmu.DCM: the card as the page gives it */
+  VMU.open(new Uint8Array(fs.readFileSync(path.join(SAMPLES, "newvmu.DCM"))), "newvmu.DCM");
+  const card = VMU.exportCard(false);
+  const logic = VMU.files().find(f => f.name === "LOGIC");
+  let r = sameRun(VMS, card, "logic-card.bin", 3000, 10, keyScript(1, 3000, false));
+  ok("LOGIC, from the whole card: same screen every 100 ms, flash and tones", !r.diff, r.diff);
+  ok("  and the game runs: the screen changes", new Set(r.out.split("\n").filter(l => l[0] === "S").map(l => l.split(" ")[2])).size > 3);
+  ok("  only the game's own blocks are writable", VMS.gamesize === logic.filesize * VMU.BLK);
+
+  /* on its own the game gets a directory made up around it */
+  r = sameRun(VMS, logic.data, "LOGIC.VMS", 3000, 10, keyScript(2, 3000, false));
+  ok("LOGIC as a lone game file: the same", !r.diff, r.diff);
+  ok("  the directory made up around it matches too", VMS.flash[253 * 512] === 0xcc && VMS.gamesize === logic.filesize * VMU.BLK);
+
+  /* buttons that quit: both stop at the same point */
+  let quits = 0, agree = 0;
+  for (let seed = 3; seed < 13; seed++) {
+    r = sameRun(VMS, card, "logic-quit.bin", 4000, 50, keyScript(seed, 4000, true));
+    if (!r.diff) agree++;
+    if (/^E exit/m.test(r.out)) quits++;
+  }
+  ok("with Mode and Sleep pressed too, 10 runs agree (" + quits + " of them quit the game)", agree === 10);
+
+  /* games never show some of it: the half-carry flag, say, or exactly when
+   * the base timer ticks. This program makes all of that land in flash. */
+  r = sameRun(VMS, flagProgram(), "FLAGS.VMS", 1000, 100, "");
+  ok("the test program: ALU flags over all 256 values, MUL/DIV, and base timer timing agree", !r.diff, r.diff);
+  ok("  and it got to the end: the ticks were timed", VMS.flash[0x3001] !== 0 && VMS.flash[0x3004] !== 0);
+
+  /* a card with no game has nothing to run from block 0: both stop the same */
+  r = sameRun(VMS, new Uint8Array(fs.readFileSync(path.join(SAMPLES, "dcvmu.bin"))), "nogame.bin", 200, 10, "");
+  ok("a card with no game on it: the same", !r.diff, r.diff);
+  return true;
+}
+
+/* DC_SAVES: every mini-game in the collection, as the page runs it */
+function emulatorCorpus(VMU, VMS, root) {
+  console.log("\n=== every mini-game under " + root + " ===");
+  let games = 0, runs = 0, agree = 0, quit = 0, wrote = 0;
+  const bad = [];
+  for (const vmi of vmiFiles(root)) {
+    const d = VMU.vmiDecode(new Uint8Array(fs.readFileSync(vmi)));
+    if (!d || d.ent.filetype !== VMU.GAME) continue;
+    const dir = path.dirname(vmi);
+    const vmsName = fs.readdirSync(dir).find(f => f.toLowerCase() === d.info.resource.toLowerCase() + ".vms");
+    if (!vmsName) continue;
+    const vms = new Uint8Array(fs.readFileSync(path.join(dir, vmsName)));
+    VMU.create();
+    try { VMU.writeFile(d.ent, vms.subarray(0, d.info.filesize)); } catch (e) { continue; }
+    const card = VMU.exportCard(false);
+    const game = VMU.files()[0].data;
+    games++;
+    for (const withMode of [false, true]) {
+      const r = sameRun(VMS, card, "game.bin", 6000, 50, keyScript(games * 2 + withMode, 6000, withMode));
+      runs++;
+      if (!r.diff) agree++; else bad.push(path.basename(vmi) + (withMode ? " (mode)" : "") + ": " + r.diff);
+      if (/^E exit/m.test(r.out)) quit++;
+      if (!withMode && VMS.flash.subarray(0, game.length).some((v, i) => v !== game[i])) wrote++;
+    }
+    const r = sameRun(VMS, vms.subarray(0, d.info.filesize), "game.vms", 2000, 50, keyScript(games, 2000, false));
+    runs++;
+    if (!r.diff) agree++; else bad.push(path.basename(vmi) + " (lone file): " + r.diff);
+  }
+  ok(games + " mini-games, " + runs + " runs of up to a minute: all agree with SoftVMS (" + agree + "/" + runs + ")",
+     agree === runs, bad.slice(0, 5).join("; "));
+  console.log("    (" + quit + " runs quit the game, " + wrote + " games saved to their file)");
+}
+
+/* every .VMI under a directory */
+function vmiFiles(root) {
+  const out = [];
   (function walk(d) {
     for (const e of fs.readdirSync(d, { withFileTypes: true })) {
       const p = path.join(d, e.name);
       if (e.isDirectory() && e.name !== ".git") walk(p);
-      else if (/\.vmi$/i.test(e.name)) pairs.push(p);
+      else if (/\.vmi$/i.test(e.name)) out.push(p);
     }
   })(root);
+  return out;
+}
+
+function corpus(VMU, root) {
+  console.log("\n=== every save under " + root + " ===");
+  const pairs = vmiFiles(root);
 
   const n = { card: 0, dci: 0, gif: 0, crc: 0, refusedBoth: 0 }, bad = [];
   let tried = 0;
