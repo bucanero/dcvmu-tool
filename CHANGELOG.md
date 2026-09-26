@@ -25,6 +25,9 @@ support comes from dci4vmi.
   web page, and the icons match vmu2gif's GIFs pixel for pixel
 - reads VMIs as other tools wrote them: Planetweb's fixed `ADD@` checksum, and
   timestamps in BCD or with a 0-based month
+- keeps file names byte for byte: a game's name is padded with spaces on the
+  card, a data file's with NULs, and both survive export, import and a rename
+  to the same name; a new name is written NUL padded
 
 ### Dreamcast VMU Manager (web)
 

@@ -226,6 +226,26 @@ static void name_from_card(char *dst, const uint8_t *src)
 		dst[n - 1] = 0;
 }
 
+void vmu_name_get(vmu_dirent_t *ent, const uint8_t *src)
+{
+	memcpy(ent->rawname, src, VMU_NAME_LEN);
+	name_from_card(ent->filename, src);
+}
+
+void vmu_name_put(uint8_t *dst, const vmu_dirent_t *ent)
+{
+	char stored[VMU_NAME_LEN + 1];
+
+	name_from_card(stored, ent->rawname);
+	if (stored[0] && strcmp(stored, ent->filename) == 0) {
+		memcpy(dst, ent->rawname, VMU_NAME_LEN);
+		return;
+	}
+	/* NUL padded, as KallistiOS writes it */
+	memset(dst, 0, VMU_NAME_LEN);
+	memcpy(dst, ent->filename, strnlen(ent->filename, VMU_NAME_LEN));
+}
+
 int vmu_dir_get(const vmu_card_t *card, int idx, vmu_dirent_t *ent)
 {
 	const uint8_t *d;
@@ -241,7 +261,7 @@ int vmu_dir_get(const vmu_card_t *card, int idx, vmu_dirent_t *ent)
 	ent->filetype    = d[DIR_TYPE];
 	ent->copyprotect = d[DIR_COPY];
 	ent->firstblk    = read_le_uint16(d + DIR_FIRST);
-	name_from_card(ent->filename, d + DIR_NAME);
+	vmu_name_get(ent, d + DIR_NAME);
 	memcpy(&ent->timestamp, d + DIR_TIME, sizeof(vmu_timestamp_t));
 	ent->filesize    = read_le_uint16(d + DIR_SIZE);
 	ent->hdroff      = read_le_uint16(d + DIR_HDROFF);
@@ -257,8 +277,7 @@ static void dir_put(vmu_card_t *card, int idx, const vmu_dirent_t *ent)
 	d[DIR_TYPE] = ent->filetype;
 	d[DIR_COPY] = ent->copyprotect;
 	append_le_uint16(d + DIR_FIRST, ent->firstblk);
-	/* NUL padded, as KallistiOS writes it (the memset above) */
-	memcpy(d + DIR_NAME, ent->filename, strnlen(ent->filename, VMU_NAME_LEN));
+	vmu_name_put(d + DIR_NAME, ent);
 	memcpy(d + DIR_TIME, &ent->timestamp, sizeof(vmu_timestamp_t));
 	append_le_uint16(d + DIR_SIZE, ent->filesize);
 	append_le_uint16(d + DIR_HDROFF, ent->hdroff);
@@ -485,6 +504,7 @@ int vmu_rename_file(vmu_card_t *card, int idx, const char *name)
 	if (other >= 0 && other != idx)
 		return VMU_ERR_EXIST;
 
+	/* a new name is written NUL padded, a same one keeps its bytes */
 	memset(ent.filename, 0, sizeof(ent.filename));
 	strncpy(ent.filename, name, VMU_NAME_LEN);
 	dir_put(card, idx, &ent);

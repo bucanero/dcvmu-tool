@@ -53,6 +53,11 @@ Hovering a file highlights the blocks it occupies in the block map.
   raw `.vms`. A `.vmi` names its `.vms` through an 8-character resource name, so
   pick or drop both files together; they are paired up by that name.
 
+File names keep their stored bytes: on a card a game's name is padded with
+spaces (`LOGIC` and seven spaces) and a data file's with NULs, and both go out
+to `.dci` and `.vmi` and back in unchanged, as in the CLI. A renamed file is
+written NUL padded.
+
 Icons are drawn from each file's VMS header, animated with the same frame time
 the exported GIF carries (vmu2gif's: the header's speed times 4 hundredths of a
 second), and `ICONDATA_VMS` shows the card's own icon. Descriptions are decoded

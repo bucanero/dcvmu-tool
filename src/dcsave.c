@@ -314,7 +314,7 @@ static void dirent_decode(const uint8_t *d, vmu_dirent_t *ent)
 	ent->filetype    = d[0x00];
 	ent->copyprotect = d[0x01];
 	ent->firstblk    = read_le_uint16(d + 0x02);
-	copy_text(ent->filename, d + 0x04, VMU_NAME_LEN);
+	vmu_name_get(ent, d + 0x04);
 	memcpy(&ent->timestamp, d + 0x10, sizeof(vmu_timestamp_t));
 	ent->filesize    = read_le_uint16(d + 0x18);
 	ent->hdroff      = read_le_uint16(d + 0x1A);
@@ -326,7 +326,7 @@ static void dirent_encode(const vmu_dirent_t *ent, uint8_t *d)
 	d[0x00] = ent->filetype;
 	d[0x01] = ent->copyprotect;
 	append_le_uint16(d + 0x02, ent->firstblk);
-	put_text(d + 0x04, ent->filename, VMU_NAME_LEN);
+	vmu_name_put(d + 0x04, ent);
 	memcpy(d + 0x10, &ent->timestamp, sizeof(vmu_timestamp_t));
 	append_le_uint16(d + 0x18, ent->filesize);
 	append_le_uint16(d + 0x1A, ent->hdroff);
@@ -470,7 +470,7 @@ int vmi_decode(const uint8_t *buf, size_t len, vmu_dirent_t *ent, vmi_info_t *in
 		return -1;
 
 	memset(ent, 0, sizeof(*ent));
-	copy_text(ent->filename, buf + VMI_FILENAME, VMU_NAME_LEN);
+	vmu_name_get(ent, buf + VMI_FILENAME);
 	mode = read_le_uint16(buf + VMI_MODE);
 	ent->filetype    = (mode & VMI_MODE_GAME) ? VMU_FILE_GAME : VMU_FILE_DATA;
 	ent->copyprotect = (mode & VMI_MODE_NOCOPY) ? VMU_COPY_PROTECTED : VMU_COPY_OK;
@@ -506,7 +506,7 @@ void vmi_encode(const vmu_dirent_t *ent, const char *resource, const char *descr
 
 	append_le_uint16(out + VMI_VERSION, 0);
 	append_le_uint16(out + VMI_FILENUM, 1);
-	put_text(out + VMI_FILENAME, ent->filename, VMU_NAME_LEN);
+	vmu_name_put(out + VMI_FILENAME, ent);
 
 	if (ent->filetype == VMU_FILE_GAME)
 		mode |= VMI_MODE_GAME;

@@ -76,6 +76,10 @@ typedef struct {
 	uint8_t  copyprotect;           /* VMU_COPY_OK / VMU_COPY_PROTECTED */
 	uint16_t firstblk;
 	char     filename[VMU_NAME_LEN + 1];
+	/* The name's 12 bytes as they were stored, padding and all: game files
+	 * are padded with spaces, data files with NULs. Written back as long as
+	 * they still spell filename; all zero for an entry made from a name. */
+	uint8_t  rawname[VMU_NAME_LEN];
 	vmu_timestamp_t timestamp;
 	uint16_t filesize;              /* in blocks */
 	uint16_t hdroff;                /* VMS header offset, in blocks */
@@ -116,6 +120,12 @@ int vmu_dir_get(const vmu_card_t *card, int idx, vmu_dirent_t *ent);
 
 /* Directory slot holding `name`, or VMU_ERR_NOENT */
 int vmu_find(const vmu_card_t *card, const char *name);
+
+/* Write ent's name into a 12-byte field: its stored bytes when it has them,
+ * else the name NUL padded */
+void vmu_name_put(uint8_t *dst, const vmu_dirent_t *ent);
+/* Keep a name's stored bytes, and the name read from them */
+void vmu_name_get(vmu_dirent_t *ent, const uint8_t *src);
 
 /* Blocks available for new data files */
 int vmu_free_blocks(const vmu_card_t *card);

@@ -477,6 +477,13 @@ const VMU = (() => {
     while (n > 0 && (bytes[n - 1] === 0x20 || bytes[n - 1] === 0)) n--;
     return String.fromCharCode.apply(null, bytes.subarray(0, n));
   }
+  /* A name's stored bytes, padding and all (game files are padded with
+   * spaces, data files with NULs), while they still spell ent.name; else
+   * the name NUL padded. Like vmu_name_put() in the CLI. */
+  function storedName(ent) {
+    if (ent.raw && ent.name && nameFrom(ent.raw) === ent.name) return ent.raw;
+    return nameBytes(ent.name);
+  }
   function normName(name) {
     return nameFrom(nameBytes(name));
   }
@@ -572,7 +579,7 @@ const VMU = (() => {
   function decodeDirent(d) {
     return {
       filetype: d[0], copyprotect: d[1], firstblk: u16(d, 2),
-      name: nameFrom(d.subarray(4, 16)),
+      name: nameFrom(d.subarray(4, 16)), raw: d.slice(4, 16),
       timestamp: d.slice(0x10, 0x18),
       filesize: u16(d, 0x18), hdroff: u16(d, 0x1a)
     };
@@ -583,7 +590,7 @@ const VMU = (() => {
     d[0] = ent.filetype;
     d[1] = ent.copyprotect;
     put16(d, 2, ent.firstblk);
-    d.set(nameBytes(ent.name), 4);   /* NUL padded, whatever it was before */
+    d.set(storedName(ent), 4);
     d.set(ent.timestamp, 0x10);
     put16(d, 0x18, ent.filesize);
     put16(d, 0x1a, ent.hdroff);
@@ -726,7 +733,7 @@ const VMU = (() => {
     if (!ent) throw new Error(ERR.NOENT);
     const other = find(name);
     if (other >= 0 && other !== idx) throw new Error(ERR.EXIST);
-    ent.name = name;
+    ent.name = name;   /* a new name is written NUL padded, a same one keeps its bytes */
     const o = direntOffset(idx);
     encodeDirent(ent, img.subarray(o, o + DIRENT));
   }
@@ -1038,7 +1045,7 @@ const VMU = (() => {
 
     const mode = u16(buf, 0x64);
     const ent = {
-      name: nameFrom(buf.subarray(0x58, 0x64)),
+      name: nameFrom(buf.subarray(0x58, 0x64)), raw: buf.slice(0x58, 0x64),
       filetype: (mode & 2) ? GAME : DATA,
       copyprotect: (mode & 1) ? PROTECTED : 0,
       hdroff: (mode & 2) ? 1 : 0,
@@ -1075,7 +1082,7 @@ const VMU = (() => {
     out[0x4b] = dow === 6 ? 0 : dow + 1;
     put16(out, 0x4c, 0);
     put16(out, 0x4e, 1);
-    out.set(nameBytes(ent.name), 0x58);
+    out.set(storedName(ent), 0x58);
     put16(out, 0x64, (ent.filetype === GAME ? 2 : 0) | (ent.copyprotect === PROTECTED ? 1 : 0));
     put32(out, 0x68, data.length);
     return { vmi: out, vms: data };

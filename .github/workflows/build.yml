@@ -75,6 +75,9 @@ jobs:
         # and a DCM written back byte for byte when nothing changed
         ./dcvmu-tool samples/newvmu.DCM --mc-info | grep -q "Files     : 25"
         ./dcvmu-tool samples/newvmu.DCM --list | grep -q "LOGIC        | GAME"
+        # a game's name is space padded on the card, and stays that way
+        ./dcvmu-tool samples/newvmu.DCM --dci-export LOGIC dc_logic.dci >/dev/null
+        test "$(dd if=dc_logic.dci bs=1 skip=4 count=12 2>/dev/null)" = "LOGIC       "
         ./dcvmu-tool samples/newvmu.DCM --file-info CDX_CODES_00 | grep -q "(not set)"
         ./dcvmu-tool samples/newvmu.DCM --icon-gif ICONDATA_VMS dc_card.gif | grep -q "dc_card.gif"
         cp samples/newvmu.DCM dc_copy.bin

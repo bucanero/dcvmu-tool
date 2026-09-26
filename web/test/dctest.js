@@ -438,6 +438,40 @@ function main() {
   const logic = byName("LOGIC");
   ok("LOGIC is a game file, running from block 0", logic.filetype === VMU.GAME && logic.firstblk === 0);
   ok("its header is at block 1", VMU.headerOffset(logic) === 512 && logic.vms.descDc === "VMU Script");
+
+  /* A game's name is padded with spaces on the card, a data file's with
+   * NULs; both go through every export and import as they were */
+  const SPACED = Uint8Array.from("LOGIC       ", c => c.charCodeAt(0));
+  const nameAt = (b, o) => b.subarray(o, o + 12);
+  const dirName = b => nameAt(b, 253 * 512 + 4);
+  ok("LOGIC's name is space padded on the card", same(nameAt(VMU.dciEncode(logic.idx), 4), SPACED));
+  cli(NEX, "--dci-export", "LOGIC", "logic.dci");
+  cli(NEX, "--vmi-export", "LOGIC", "LOGICV");
+  ok("  and in the .dci and .vmi, from both", same(nameAt(read("logic.dci"), 4), SPACED) &&
+     same(nameAt(read("LOGICV.VMI"), 0x58), SPACED) &&
+     same(nameAt(VMU.vmiEncode(logic.idx, "LOGICV", "x").vmi, 0x58), SPACED));
+  ok("  a data file's stays NUL padded", nameAt(VMU.dciEncode(byName("HYDRO___SYS").idx), 4)[11] === 0 &&
+     nameAt(read("n.dci"), 4)[11] !== 0x20);
+  const logicDci = read("logic.dci"), logicVmi = read("LOGICV.VMI"), logicVms = read("LOGICV.VMS");
+  for (const [label, file] of [[".dci", tmp("logic.dci")], [".vmi", tmp("LOGICV.VMI")]]) {
+    cli(tmp("pad.bin"), "--mc-create");
+    cli(tmp("pad.bin"), "--import", file);
+    VMU.create();
+    const d = label === ".dci" ? VMU.dciDecode(logicDci) : VMU.vmiDecode(logicVmi);
+    VMU.writeFile(d.ent, label === ".dci" ? d.data : logicVms.subarray(0, d.info.filesize));
+    ok("  imported from the " + label + ", the card keeps the spaces, in both",
+       same(dirName(read("pad.bin")), SPACED) && same(dirName(VMU.exportCard(false)), SPACED) &&
+       sameCard(VMU.exportCard(false), read("pad.bin")));
+  }
+  VMU.renameFile(VMU.find("LOGIC"), "LOGIC");
+  cli(tmp("pad.bin"), "--rename", "LOGIC", "LOGIC");
+  ok("  renamed to the same name, it keeps them", same(dirName(VMU.exportCard(false)), SPACED) &&
+     sameCard(VMU.exportCard(false), read("pad.bin")));
+  VMU.renameFile(VMU.find("LOGIC"), "LOGIC2");
+  cli(tmp("pad.bin"), "--rename", "LOGIC", "LOGIC2");
+  ok("  renamed to a new one, it is NUL padded, in both", dirName(VMU.exportCard(false))[11] === 0 &&
+     sameCard(VMU.exportCard(false), read("pad.bin")));
+  VMU.open(nexus, "newvmu.DCM");
   ok("copy protection is read", byName("CHU_CHU__RCT").copyprotect === VMU.PROTECTED &&
      byName("PJUSTICE_SYS").copyprotect === VMU.PROTECTED && byName("SONIC2___S01").copyprotect === 0);
   ok("DRACONUS.001 carries a true-colour eyecatch", byName("DRACONUS.001").vms.eyecatch === 1);
