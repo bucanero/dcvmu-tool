@@ -203,6 +203,62 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 footer { margin-top: 40px; color: var(--fg-faint); font-size: 12px; text-align: center; line-height: 1.8; }
 footer a { color: var(--fg-dim); }
 
+/* ---------- mini-game player ---------- */
+#player {
+  position: fixed; inset: 0; z-index: 60;
+  background: rgba(5, 7, 10, .9);
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  padding: 16px; overflow-y: auto;
+}
+#player[hidden] { display: none; }
+.vmu {
+  width: 340px; max-width: 100%;
+  background: linear-gradient(170deg, #f5f6f8, #d4d8de);
+  color: #2b313c;
+  border-radius: 26px 26px 64px 64px;
+  padding: 14px 18px 24px;
+  box-shadow: 0 24px 60px rgba(0,0,0,.6), inset 0 -3px 0 rgba(0,0,0,.08);
+}
+.vmu-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.vmu-title { flex: 1; min-width: 0; font-size: 12.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.vmu button {
+  color: #2b313c; background: #e6e9ee; border: 1px solid #b9bfc9;
+  box-shadow: 0 2px 0 #aab1bd;
+}
+.vmu button:hover { background: #f1f3f6; border-color: #9aa3b1; }
+.vmu button:active { transform: translateY(2px); box-shadow: none; }
+.vmu-close { padding: 2px 9px; font-size: 13px; line-height: 1.4; }
+.vmu-screen { background: #1c212b; border-radius: 12px 12px 12px 34px; padding: 10px; }
+.vmu-screen canvas {
+  display: block; width: 100%; height: auto; border-radius: 4px;
+  image-rendering: pixelated; background: #aad5c3;
+}
+.vmu-pad {
+  display: grid; grid-template-columns: 1fr 1fr; align-items: center;
+  margin-top: 18px; user-select: none; -webkit-user-select: none;
+}
+.vmu-pad button { touch-action: none; -webkit-tap-highlight-color: transparent; }
+.dpad { display: grid; grid-template-columns: repeat(3, 40px); grid-template-rows: repeat(3, 40px); gap: 2px; }
+.dpad button { padding: 0; font-size: 14px; border-radius: 8px; }
+.dpad .u { grid-area: 1 / 2; } .dpad .l { grid-area: 2 / 1; }
+.dpad .r { grid-area: 2 / 3; } .dpad .d { grid-area: 3 / 2; }
+.dpad .hub { grid-area: 2 / 2; background: #c6cbd3; border-radius: 6px; }
+.ab { position: relative; height: 124px; }
+.ab button {
+  position: absolute; width: 50px; height: 50px; padding: 0;
+  border-radius: 50%; font-size: 16px; font-weight: 700;
+}
+.ab .b { left: 8px; top: 12px; }
+.ab .a { right: 6px; top: 50px; }
+.vmu-small { display: flex; justify-content: center; gap: 22px; margin-top: 14px; }
+.vmu-small button { font-size: 10.5px; padding: 3px 14px; border-radius: 999px; letter-spacing: .06em; text-transform: uppercase; }
+.vmu .pressed { background: #c6cbd3; transform: translateY(2px); box-shadow: none; }
+.pl-bar { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-top: 14px; width: 340px; max-width: 100%; }
+.pl-status { margin-top: 10px; color: var(--fg-dim); font-size: 12.5px; text-align: center; min-height: 1.5em; width: 340px; max-width: 100%; }
+.pl-status.warn { color: #f5c85a; }
+.pl-keys { margin-top: 6px; color: var(--fg-faint); font: 11px var(--mono); text-align: center; width: 340px; max-width: 100%; }
+@media (hover: none) { .pl-keys { display: none; } }
+
 @media (max-width: 560px) {
   .wrap { padding: 20px 16px 60px; }
   .grid { grid-template-columns: 1fr; }
@@ -227,7 +283,7 @@ footer a { color: var(--fg-dim); }
     </nav>
   </header>
   <p class="tagline">
-    Open, inspect and edit Sega Dreamcast VMU memory cards.
+    Open, inspect and edit Sega Dreamcast VMU memory cards, and play the mini-games on them.
     <b>Everything runs locally in your browser</b> &mdash; no upload, no server, no install.
   </p>
 
@@ -287,7 +343,9 @@ footer a { color: var(--fg-dim); }
     Ported from <a href="https://github.com/bucanero/dcvmu-tool" target="_blank" rel="noopener">dcvmu-tool</a> by Bucanero,
     based on <a href="https://github.com/RossMeikleham/FUSE-VMU" target="_blank" rel="noopener">FUSE-VMU</a> by Ross Meikleham,
     <a href="https://github.com/bucanero/dci4vmi" target="_blank" rel="noopener">dci4vmi</a>
-    and <a href="https://github.com/bucanero/vmu2gif" target="_blank" rel="noopener">vmu2gif</a>. GPLv3.<br>
+    and <a href="https://github.com/bucanero/vmu2gif" target="_blank" rel="noopener">vmu2gif</a>.
+    VMU emulation ported from SoftVMS by Marcus Comstedt, by way of
+    <a href="https://github.com/bucanero/vmucd" target="_blank" rel="noopener">vmucd</a>. GPLv3.<br>
     Your card files never leave this machine.
   </footer>
 </div>
@@ -295,6 +353,40 @@ footer a { color: var(--fg-dim); }
 <div id="toasts"></div>
 <input type="file" id="file-card" style="display:none">
 <input type="file" id="file-save" style="display:none" multiple accept=".dci,.vmi,.vms">
+<div id="player" hidden>
+  <div class="vmu" role="dialog" aria-modal="true" aria-labelledby="pl-title">
+    <div class="vmu-head">
+      <span class="vmu-title" id="pl-title">—</span>
+      <button class="vmu-close" id="pl-close" title="Close (Esc)">&times;</button>
+    </div>
+    <div class="vmu-screen"><canvas id="pl-lcd" width="288" height="240"></canvas></div>
+    <div class="vmu-pad">
+      <div class="dpad">
+        <button class="u" data-key="0" aria-label="Up">&#9650;</button>
+        <button class="l" data-key="2" aria-label="Left">&#9664;</button>
+        <span class="hub"></span>
+        <button class="r" data-key="3" aria-label="Right">&#9654;</button>
+        <button class="d" data-key="1" aria-label="Down">&#9660;</button>
+      </div>
+      <div class="ab">
+        <button class="b" data-key="5">B</button>
+        <button class="a" data-key="4">A</button>
+      </div>
+    </div>
+    <div class="vmu-small">
+      <button data-key="6">Mode</button>
+      <button data-key="7">Sleep</button>
+    </div>
+  </div>
+  <div class="pl-status" id="pl-status"></div>
+  <div class="pl-bar">
+    <button id="pl-reset">Restart</button>
+    <button id="pl-sound">Sound: on</button>
+    <button id="pl-bios">BIOS&hellip;</button>
+  </div>
+  <div class="pl-keys">arrows &middot; A: A/Z &middot; B: B/X &middot; Mode: M/Enter &middot; Sleep: S/Space &middot; Esc closes</div>
+</div>
+<input type="file" id="file-bios" style="display:none">
 
 <script>
 "use strict";
@@ -1054,6 +1146,1028 @@ const VMU = (() => {
   };
 })();
 
+/* =====================================================================
+ * VMU emulator  (JS port of SoftVMS 1.10's cpu.c, by Marcus Comstedt)
+ *
+ * Runs VMU mini-games: the LC86K CPU, its timers, the LCD and the one-tone
+ * buzzer. Without a BIOS dump the firmware calls games make (flash read,
+ * write and verify, and the clock tick) are emulated, as SoftVMS does.
+ *
+ * Kept as close to cpu.c as JavaScript allows, statement for statement, so
+ * it can be checked against it: web/test/dctest.js builds cpu.c with a
+ * headless front end (web/test/softvms/) and compares the LCD, the flash
+ * and the tones played, slice by slice.
+ *
+ * SoftVMS runs forever and sleeps between 10 ms slices; here run(n) runs n
+ * slices and returns, and the page calls it from requestAnimationFrame.
+ * onSlice is called where cpu.c polls for input, once per slice.
+ * ===================================================================== */
+const VMS = (() => {
+  const flash = new Uint8Array(0x20000);
+  /* 64 KB, padded like flash so a read just past it is defined */
+  const bios = new Uint8Array(0x20000);
+  const ram = [new Uint8Array(0x100), new Uint8Array(0x100)];
+  const sfr = new Uint8Array(0x100);
+  const xram = [new Uint8Array(0x80), new Uint8Array(0x80), new Uint8Array(0x80)];
+  const wram = new Uint8Array(0x200);
+  const parity = new Uint8Array(0x100);
+  /* 48x32 dot matrix, then the four status icons on rows 33-39 */
+  const W = 48, H = 40;
+  const lcd = new Uint8Array(W * H);
+
+  let rom = flash;
+  let pc = 0, lcdUpdated = 0, lcdon = 0, imask = 0, intreq = 0, hasbios = 0;
+  let spd = 0, t0h = 0, t0l = 0, t0base = 0, t0scale = 0, t1h = 0, t1l = 0;
+  let gamesize = 0, mcy = 0, tick = 0;
+  let halted = null;
+  const hooks = { sound: null, redraw: null, error: null };
+
+  /* ++ as on an unsigned char: the value stored, so 255 wraps to 0 */
+  const inc = (a, o) => { a[o]++; return a[o]; };
+  const SGNEXT = n => (n & 0x80 ? n - 0x100 : n);
+  const tobcd = n => ((Math.floor(n / 10)) << 4) | (n % 10);
+  const error = msg => { if (hooks.error) hooks.error(msg); };
+  const sound = freq => { if (hooks.sound) hooks.sound(freq); };
+
+  function keypress(i) {
+    sfr[0x4c] &= ~(1 << i);
+    if (sfr[0x4e] & 4) sfr[0x4e] |= 2;
+  }
+  function keyrelease(i) {
+    sfr[0x4c] |= (1 << i);
+    if (sfr[0x4e] & 4) sfr[0x4e] |= 2;
+  }
+
+  /* date: { year, mon (1-12), mday, hour, min, sec, wday (0 = Sunday) } */
+  function dateNow() {
+    const d = new Date();
+    return { year: d.getFullYear(), mon: d.getMonth() + 1, mday: d.getDate(),
+             hour: d.getHours(), min: d.getMinutes(), sec: d.getSeconds(), wday: d.getDay() };
+  }
+
+  /* A lone game file gets a directory built around it, as on a VMU */
+  function fakeflash(filename, sz, tm) {
+    const root = 255 * 512, fat = 254 * 512, dir = 253 * 512;
+    let i;
+    filename = filename.replace(/^.*[\\/]/, "");
+    flash.fill(0, 241 * 512);
+    sz = (sz + 511) >> 9;
+    for (i = 0; i < 256 * 2; i += 2) {
+      flash[fat + i] = 0xfc;
+      flash[fat + i + 1] = 0xff;
+    }
+    for (i = 0; i < sz; i++) {
+      flash[fat + 2 * i] = i + 1;
+      flash[fat + 2 * i + 1] = 0;
+    }
+    if ((--i) >= 0) {
+      flash[fat + 2 * i] = 0xfa;
+      flash[fat + 2 * i + 1] = 0xff;
+    }
+    flash[fat + 254 * 2] = 0xfa;
+    flash[fat + 254 * 2 + 1] = 0xff;
+    flash[fat + 255 * 2] = 0xfa;
+    flash[fat + 255 * 2 + 1] = 0xff;
+    for (i = 253; i > 241; --i) {
+      flash[fat + 2 * i] = i - 1;
+      flash[fat + 2 * i + 1] = 0;
+    }
+    flash[fat + 241 * 2] = 0xfa;
+    flash[fat + 241 * 2 + 1] = 0xff;
+    flash[dir] = 0xcc;
+    for (i = 0; i < 12; i++)
+      flash[dir + 4 + i] = i < filename.length ? filename.charCodeAt(i) : 0x20;
+    const tmYear = tm.year - 1900;
+    flash[dir + 0x10] = tobcd(Math.floor(tmYear / 100) + 19);
+    flash[dir + 0x11] = tobcd(tmYear % 100);
+    flash[dir + 0x12] = tobcd(tm.mon);
+    flash[dir + 0x13] = tobcd(tm.mday);
+    flash[dir + 0x14] = tobcd(tm.hour);
+    flash[dir + 0x15] = tobcd(tm.min);
+    flash[dir + 0x16] = tobcd(tm.sec);
+    flash[dir + 0x17] = tobcd(tm.wday);
+    flash[dir + 0x18] = sz & 0xff;
+    flash[dir + 0x19] = sz >> 8;
+    flash[dir + 0x1a] = 1;
+    flash.fill(0x55, root, root + 16);
+    flash[root + 0x10] = 1;
+    flash.copyWithin(root + 0x30, dir + 0x10, dir + 0x18);
+    flash[root + 0x44] = 255;
+    flash[root + 0x46] = 254;
+    flash[root + 0x48] = 1;
+    flash[root + 0x4a] = 253;
+    flash[root + 0x4c] = 13;
+    flash[root + 0x50] = 200;
+  }
+
+  /* Flash writes are allowed within the game file only */
+  function check_gamesize() {
+    const root = 255 * 512;
+    const fatblk = (flash[root + 0x47] << 8) | flash[root + 0x46];
+    let dirblk = (flash[root + 0x4b] << 8) | flash[root + 0x4a];
+    let dircnt = (flash[root + 0x4d] << 8) | flash[root + 0x4c];
+    if (fatblk >= 256 || dircnt >= 256 || !dircnt)
+      return;
+    const fat = fatblk * 512;
+    while (dircnt-- && dirblk < 256) {
+      const dir = dirblk * 512;
+      dirblk = (flash[fat + 2 * dirblk + 1] << 8) | flash[fat + 2 * dirblk];
+      for (let i = 0; i < 16; i++)
+        if (flash[dir + i * 32] === 0xcc) {
+          const sz = (flash[dir + i * 32 + 0x19] << 8) | flash[dir + i * 32 + 0x18];
+          if (sz > 1 && sz <= 200) {
+            gamesize = sz * 512;
+            return;
+          }
+        }
+    }
+  }
+
+  /* A whole card, or a single game file. false if it is too short. */
+  function load(bytes, filename, tm) {
+    if (bytes.length < 0x480) return false;
+    flash.fill(0);
+    const r = Math.min(bytes.length, flash.length);
+    flash.set(bytes.subarray(0, r));
+    gamesize = r;
+    if (r < 241 * 512)
+      fakeflash(filename || "", r, tm || dateNow());
+    check_gamesize();
+    return true;
+  }
+
+  /* A dump of the VMU's own firmware, or null to emulate its calls */
+  function setBios(bytes) {
+    bios.fill(0);
+    if (!bytes) { hasbios = 0; return true; }
+    if (bytes.length < 0x200) return false;
+    bios.set(bytes.subarray(0, Math.min(bytes.length, 0x10000)));
+    hasbios = 1;
+    return true;
+  }
+
+  function vmputpixel(x, y, p) {
+    lcd[y * W + x] = p & 1;
+  }
+
+  const icon = [
+    [0x2a, 0x23, 0x47, 0xfb, 0x23, 0x23, 0x3f],
+    [0xff, 0x83, 0x93, 0xbb, 0x93, 0xbb, 0xff],
+    [0x7c, 0x82, 0x92, 0x9b, 0x82, 0x82, 0x7c],
+    [0x10, 0x28, 0xef, 0x6e, 0x6c, 0x7e, 0xc3]
+  ];
+
+  function lcdrefresh() {
+    let y, x, i, a, b = 0, p = 0;
+
+    p = sfr[0x22];
+    if (p >= 0x83)
+      p -= 0x83;
+    b = (p >> 6);
+    p = (p & 0x3f) * 2;
+    for (y = 0; y < 32; y++) {
+      for (x = 0; x < 48; ) {
+        let value = xram[b][p++];
+        if (!lcdon)
+          value = 0;
+        vmputpixel(x++, y, value >> 7);
+        vmputpixel(x++, y, value >> 6);
+        vmputpixel(x++, y, value >> 5);
+        vmputpixel(x++, y, value >> 4);
+        vmputpixel(x++, y, value >> 3);
+        vmputpixel(x++, y, value >> 2);
+        vmputpixel(x++, y, value >> 1);
+        vmputpixel(x++, y, value);
+        if ((p & 0xf) >= 12)
+          p += 4;
+        if (p >= 128) {
+          b++;
+          p -= 128;
+        }
+        if (b === 2 && p >= 6) {
+          b = 0;
+          p -= 6;
+        }
+      }
+    }
+    p++;
+    if ((p & 0xf) >= 12)
+      p += 4;
+    if (p >= 128) {
+      b++;
+      p -= 128;
+    }
+    if (b === 2 && p >= 6) {
+      b = 0;
+      p -= 6;
+    }
+    for (i = 0; i < 4; i++) {
+      a = xram[b][p++] >> (2 * (3 - i));
+      if (!lcdon)
+        a = 0;
+      for (y = 0; y < 7; y++) {
+        const value = icon[i][y];
+        for (x = 0; x < 7; x++)
+          vmputpixel(2 + i * 12 + x, y + 33, (value >> (7 - x)) & a);
+      }
+      if ((p & 0xf) >= 12)
+        p += 4;
+      if (p >= 128) {
+        b++;
+        p -= 128;
+      }
+      if (b === 2 && p >= 6) {
+        b = 0;
+        p -= 6;
+      }
+    }
+    if (hooks.redraw) hooks.redraw();
+    lcdUpdated = 0;
+  }
+
+  function writemem(addr, value) {
+    value &= 0xff;
+    if (addr < 0x100) {
+      ram[(sfr[0x01] & 2) >> 1][addr] = value;
+      return;
+    }
+    if (addr >= 0x180) {
+      const b = sfr[0x25];
+      if (b > 2 || (b === 2 && addr >= 0x186))
+        return;
+      xram[b][addr - 0x180] = value;
+      if (lcdon)
+        lcdUpdated = 1;
+    } else switch (addr) {
+      case 0x100:
+        sfr[0x01] = (sfr[0x01] & 0xfe) | parity[value];
+        break;
+      case 0x10d:
+        if ((value & 1) !== (sfr[0x0d] & 1)) {
+          if (pc > 0xfffd || rom[pc] !== 0x21)
+            error("EXT 0 changed without following JMPF.  pc = " + (pc & 0xffff).toString(16).padStart(4, "0"));
+          else
+            pc = (rom[pc + 1] << 8) | rom[pc + 2];
+          if (hasbios)
+            rom = ((value & 1) ? flash : bios);
+        }
+        break;
+      case 0x10e:
+        switch (value & 0xa0) {
+          case 0x00: spd = 3000; break;
+          case 0x20: spd = 164; break;
+          case 0x80: spd = 6000; break;
+          case 0xa0: spd = 328; break;
+        }
+        break;
+      case 0x110:
+        if (!(value & 0x40))
+          t0l = sfr[0x13];
+        if (!(value & 0x80))
+          t0h = sfr[0x15];
+        break;
+      case 0x111:
+        t0scale = 256 - value;
+        t0base = 0;
+        break;
+      case 0x113:
+        if (!(sfr[0x10] & 0x40))
+          t0l = value;
+        break;
+      case 0x115:
+        if (!(sfr[0x10] & 0x80))
+          t0h = value;
+        break;
+      case 0x118:
+        if (!(value & 0x40))
+          t1l = sfr[0x1b];
+        if (!(value & 0x80))
+          t1h = sfr[0x1d];
+        break;
+      case 0x11b:
+        if (!(sfr[0x18] & 0x40))
+          t1l = value;
+        break;
+      case 0x11d:
+        if (!(sfr[0x18] & 0x80))
+          t1h = value;
+        break;
+      case 0x122:
+        if (lcdon)
+          lcdUpdated = 1;
+        break;
+      case 0x127:
+        if ((+!!(value & 0x80)) !== lcdon) {
+          lcdon = +!!(value & 0x80);
+          lcdrefresh();
+        }
+        break;
+      case 0x166:
+        wram[0x1ff & ((sfr[0x65] << 8) | sfr[0x64])] = value;
+        /* not !++sfr[0x64]: on a typed array that yields 256, not the 0 stored */
+        if (sfr[0x63] & 0x10) {
+          sfr[0x64]++;
+          if (!sfr[0x64])
+            sfr[0x65] ^= 1;
+        }
+        return;
+    }
+    sfr[addr & 0xff] = value;
+    if (addr === 0x118 || addr === 0x11b) {
+      /* the buzzer: timer 1's reload value sets the pitch */
+      if (sfr[0x18] & 0x40)
+        sound(Math.trunc(32768 / ((256 - sfr[0x1b]) * 6)));
+      else
+        sound(-1);
+    }
+  }
+
+  function readmem(addr) {
+    let r;
+    if (addr < 0x100)
+      return ram[(sfr[0x01] & 2) >> 1][addr];
+    if (addr >= 0x180) {
+      const b = sfr[0x25];
+      if (b > 2)
+        return 0xff;
+      return xram[b][addr - 0x180];
+    } else switch (addr) {
+      case 0x112:
+        return t0l;
+      case 0x114:
+        return t0h;
+      case 0x11b:
+        return t1l;
+      case 0x11d:
+        return t1h;
+      case 0x15c:
+        return 2;
+      case 0x165:
+        return 0xfe | (sfr[0x65] & 1);
+      case 0x166:
+        r = wram[0x1ff & ((sfr[0x65] << 8) | sfr[0x64])];
+        /* not !++sfr[0x64]: on a typed array that yields 256, not the 0 stored */
+        if (sfr[0x63] & 0x10) {
+          sfr[0x64]++;
+          if (!sfr[0x64])
+            sfr[0x65] ^= 1;
+        }
+        return r;
+    }
+    return sfr[addr & 0xff];
+  }
+
+  function readlatch(addr) {
+    switch (addr) {
+      case 0x11b:
+      case 0x11d:
+        return 0xff;
+      default:
+        return readmem(addr);
+    }
+  }
+
+  function push(n) {
+    writemem(0x106, readmem(0x106) + 1);
+    ram[0][readmem(0x106)] = n;
+  }
+
+  function pop() {
+    const r = ram[0][readmem(0x106)];
+    writemem(0x106, readmem(0x106) - 1);
+    return r;
+  }
+
+  function resetcpu(tm) {
+    let i;
+    tm = tm || dateNow();
+    for (const b of ram) b.fill(0);
+    for (const b of xram) b.fill(0);
+    wram.fill(0);
+    sfr.fill(0);
+    parity[0] = 0;
+    parity[1] = 1;
+    parity[2] = 1;
+    parity[3] = 0;
+    for (i = 4; i < 16; i++)
+      parity[i] = parity[i & 3] ^ parity[i >> 2];
+    for (i = 16; i < 255; i++)
+      parity[i] = parity[i & 15] ^ parity[i >> 4];
+    sfr[0x06] = 0x7f;
+    sfr[0x4c] = 0xff;
+    sfr[0x01] = 0x02;
+    t0h = t0l = 0;
+    t1h = t1l = 0;
+    t0base = 0;
+    t0scale = 256;
+    const tmYear = tm.year - 1900;
+    ram[0][0x10] = tobcd(Math.floor(tmYear / 100) + 19);
+    ram[0][0x11] = tobcd(tmYear % 100);
+    ram[0][0x12] = tobcd(tm.mon);
+    ram[0][0x13] = tobcd(tm.mday);
+    ram[0][0x14] = tobcd(tm.hour);
+    ram[0][0x15] = tobcd(tm.min);
+    ram[0][0x17] = tm.year >> 8;
+    ram[0][0x18] = tm.year & 0xff;
+    ram[0][0x19] = tm.mon;
+    ram[0][0x1a] = tm.mday;
+    ram[0][0x1b] = tm.hour;
+    ram[0][0x1c] = tm.min;
+    ram[0][0x1d] = tm.sec;
+    ram[0][0x31] = 0xff;
+    sfr[0x08] = 0x80;
+    writemem(0x10e, 0x81);
+    lcdUpdated = 0;
+    lcdon = 0;
+    imask = 0;
+    intreq = 0;
+    mcy = 0;
+    tick = 0;
+    halted = null;
+    if (hasbios) {
+      sfr[0x0d] = 0;
+      rom = bios;
+      pc = 0x1f0;
+    } else {
+      sfr[0x0d] = 1;
+      rom = flash;
+      pc = 0;
+      writemem(0x125, 2);
+      writemem(0x182, 0x10);
+      writemem(0x125, 0);
+      writemem(0x127, 0x80);
+    }
+    sound(-1);
+  }
+
+  function month_days() {
+    const m = ram[0][0x19];
+    if (m === 2) {
+      const y = ram[0][0x18] | (ram[0][0x17] << 8);
+      if (y & 3)
+        return 28;
+      if (!(y % 4000))
+        return 29;
+      if (!(y % 1000))
+        return 28;
+      if (!(y % 400))
+        return 29;
+      if (!(y % 100))
+        return 28;
+      return 29;
+    } else return (m > 7 ? ((m & 1) ? 30 : 31) : ((m & 1) ? 31 : 30));
+  }
+
+  /* The firmware calls a game makes, with no BIOS to run them */
+  function handle_fwcall(pc) {
+    let i, a;
+    switch (pc) {
+      case 0x100:
+        a = ((ram[1][0x7d] << 16) | (ram[1][0x7e] << 8) | ram[1][0x7f]) & 0x1ffff;
+        if (a >= gamesize)
+          writemem(0x100, 0xff);
+        else {
+          writemem(0x100, 0x00);
+          for (i = 0; i < 0x80; i++)
+            flash[(a & ~0xff) | ((a + i) & 0xff)] = ram[1][i + 0x80];
+        }
+        return 0x105;
+      case 0x110: {
+        let r = 0;
+        a = ((ram[1][0x7d] << 16) | (ram[1][0x7e] << 8) | ram[1][0x7f]) & 0x1ffff;
+        for (i = 0; i < 0x80; i++)
+          if ((r = (flash[(a & ~0xff) | ((a + i) & 0xff)] ^ ram[1][i + 0x80])) !== 0)
+            break;
+        writemem(0x100, r);
+        return 0x115;
+      }
+      case 0x120:
+        a = ((ram[1][0x7d] << 16) | (ram[1][0x7e] << 8) | ram[1][0x7f]) & 0x1ffff;
+        for (i = 0; i < 0x80; i++)
+          ram[1][i + 0x80] = flash[(a & ~0xff) | ((a + i) & 0xff)];
+        return 0x125;
+      case 0x130:
+        if (!((ram[0][0x1e] ^= 1) & 1))
+          if (inc(ram[0], 0x1d) >= 60) {
+            ram[0][0x1d] = 0;
+            if (inc(ram[0], 0x1c) >= 60) {
+              ram[0][0x1c] = 0;
+              if (inc(ram[0], 0x1b) >= 24) {
+                ram[0][0x1b] = 0;
+                if (inc(ram[0], 0x1a) > month_days()) {
+                  ram[0][0x1a] = 1;
+                  if (inc(ram[0], 0x19) >= 13) {
+                    ram[0][0x19] = 1;
+                    if (ram[0][0x18] === 0xff) {
+                      ram[0][0x18] = 0;
+                      ram[0][0x17]++;
+                    } else
+                      ram[0][0x18]++;
+                  }
+                }
+              }
+            }
+          }
+        return 0x139;
+      case 0x1f0:
+        halted = "exit";
+        return 0;
+      default:
+        error("Firmware entered at unknown vector " + pc.toString(16).padStart(4, "0") + "!");
+        halted = "vector";
+        return 0;
+    }
+  }
+
+  /* Branch taken / not taken: the offset byte is at pc */
+  const branch = () => { pc = 0xffff & (pc + 1 + SGNEXT(rom[pc])); };
+  const nobranch = () => { pc++; pc &= 0xffff; };
+
+  function add(s, c) {
+    const r = readmem(0x100);
+    writemem(0x100, r + s + c);
+    writemem(0x101, (readmem(0x101) & 0x3b) | (r + s + c > 255 ? 0x80 : 0) |
+             ((r & 15) + (s & 15) + c > 15 ? 0x40 : 0) |
+             ((0x80 & (~r ^ s) & (s ^ (r + s + c))) ? 4 : 0));
+  }
+  /* FIXME (upstream): OV is never set */
+  function sub(s, c) {
+    const r = readmem(0x100);
+    writemem(0x100, r - s - c);
+    writemem(0x101, (readmem(0x101) & 0x3b) | (r - s - c < 0 ? 0x80 : 0) |
+             ((r & 15) - (s & 15) - c < 0 ? 0x40 : 0));
+  }
+  const carry = () => (readmem(0x101) & 0x80) >> 7;
+
+  /* The operations shared by direct (d9) and indirect (@Rj) addressing,
+   * op being the opcode's high nibble. Returns the cycles taken. */
+  function memop(op, r) {
+    let s;
+    switch (op) {
+      case 0: writemem(0x100, readmem(r)); break;
+      case 1: writemem(r, readmem(0x100)); break;
+      case 5:
+        s = (readlatch(r) - 1) & 0xff;
+        writemem(r, s);
+        if (s !== 0) branch(); else nobranch();
+        return 2;
+      case 6: writemem(r, readlatch(r) + 1); break;
+      case 7: writemem(r, readlatch(r) - 1); break;
+      case 8: add(readmem(r), 0); break;
+      case 9: s = readmem(r); add(s, carry()); break;
+      case 0xa: sub(readmem(r), 0); break;
+      case 0xb: s = readmem(r); sub(s, carry()); break;
+      case 0xc:
+        s = readmem(r);
+        writemem(r, readmem(0x100));
+        writemem(0x100, s);
+        break;
+      case 0xd: writemem(0x100, readmem(0x100) | readmem(r)); break;
+      case 0xe: writemem(0x100, readmem(0x100) & readmem(r)); break;
+      case 0xf: writemem(0x100, readmem(0x100) ^ readmem(r)); break;
+    }
+    return 1;
+  }
+
+  /*
+   * Run n slices, calling onSlice() at the end of each, where cpu.c polls
+   * for input. Returns early if the game stops: halted then says why,
+   * "exit" for a return to the (absent) BIOS menu.
+   */
+  function run(n, onSlice) {
+    let done = 0;
+    while (!halted) {
+      let r, s, v, cy = 1, boundary = false;
+      const i = rom[pc];
+      pc++;
+      pc &= 0xffff;
+      switch (i & 0xf) {
+        case 0:
+          switch (i >> 4) {
+            case 0:
+              break;
+            case 1:
+              cy = 4;
+              push((pc + 2) & 0xff);
+              push(((pc + 2) & 0xff00) >> 8);
+              pc = 0xffff & (pc + 1 + rom[pc] + ((rom[(pc + 1) & 0xffff]) << 8));
+              break;
+            case 2:
+              cy = 2;
+              push((pc + 2) & 0xff);
+              push(((pc + 2) & 0xff00) >> 8);
+              pc = (rom[pc] << 8) | rom[(pc + 1) & 0xffff];
+              break;
+            case 3:
+              cy = 7;
+              r = readmem(0x102) * ((readmem(0x100) << 8) | readmem(0x103));
+              writemem(0x101, (readmem(0x101) & 0x7b) | (r > 65535 ? 4 : 0));
+              writemem(0x103, r & 0xff);
+              writemem(0x100, (r & 0xff00) >> 8);
+              writemem(0x102, (r & 0xff0000) >> 16);
+              break;
+            case 4:
+              cy = 7;
+              r = readmem(0x102);
+              if (r) {
+                v = (readmem(0x100) << 8) | readmem(0x103);
+                s = v % r;
+                r = Math.floor(v / r);
+              } else {
+                r = 0xff00 | readmem(0x103);
+                s = 0;
+              }
+              writemem(0x101, (readmem(0x101) & 0x7b) | (s ? 0 : 4));
+              writemem(0x103, r & 0xff);
+              writemem(0x100, (r & 0xff00) >> 8);
+              writemem(0x102, s);
+              break;
+            case 5:
+              cy = 2;
+              writemem(0x100, flash[0x1ffff & (readmem(0x104) + (readmem(0x105) << 8) +
+                                               (readmem(0x154) << 16))]);
+              break;
+            case 6:
+              cy = 2;
+              push(readmem(rom[pc++]));
+              pc &= 0xffff;
+              break;
+            case 7:
+              cy = 2;
+              r = rom[pc++];
+              writemem(r, pop());
+              pc &= 0xffff;
+              break;
+            case 8:
+              cy = 2;
+              if (readmem(0x100) === 0) branch(); else nobranch();
+              break;
+            case 9:
+              cy = 2;
+              if (readmem(0x100) !== 0) branch(); else nobranch();
+              break;
+            case 0xa:
+              cy = 2;
+              r = pop() << 8;
+              r |= pop();
+              pc = r;
+              break;
+            case 0xb:
+              cy = 2;
+              r = pop() << 8;
+              r |= pop();
+              pc = r;
+              --imask;
+              break;
+            case 0xc:
+              r = readmem(0x100);
+              writemem(0x100, (r >> 1) | ((r & 1) << 7));
+              break;
+            case 0xd:
+              r = readmem(0x100);
+              s = readmem(0x101);
+              writemem(0x101, (s & 0x7f) | ((r & 1) << 7));
+              writemem(0x100, (r >> 1) | (s & 0x80));
+              break;
+            case 0xe:
+              r = readmem(0x100);
+              writemem(0x100, (r << 1) | ((r & 0x80) >> 7));
+              break;
+            case 0xf:
+              r = readmem(0x100);
+              s = readmem(0x101);
+              writemem(0x101, (s & 0x7f) | (r & 0x80));
+              writemem(0x100, (r << 1) | ((s & 0x80) >> 7));
+              break;
+          }
+          break;
+        case 1:
+          switch (i >> 4) {
+            case 0:
+              cy = 2;
+              branch();
+              break;
+            case 1:
+              cy = 4;
+              pc = 0xffff & (pc + 1 + rom[pc] + ((rom[(pc + 1) & 0xffff]) << 8));
+              break;
+            case 2:
+              cy = 2;
+              pc = (rom[pc] << 8) | rom[(pc + 1) & 0xffff];
+              break;
+            case 3:
+            case 4:
+              cy = 2;
+              r = readmem(0x100);
+              writemem(0x101, (readmem(0x101) & 0x7f) | (r < rom[pc] ? 0x80 : 0));
+              s = (i >> 4) === 3 ? (r === rom[pc++]) : (r !== rom[pc++]);
+              pc &= 0xffff;
+              if (s) branch(); else nobranch();
+              break;
+            case 5:
+              cy = 2;
+              if (!(readmem(0x154) & 2))
+                flash[0x1ffff & (readmem(0x104) + (readmem(0x105) << 8) +
+                                 (readmem(0x154) << 16))] = readmem(0x100);
+              break;
+            case 6:
+              cy = 2;
+              push(readmem(0x100 | rom[pc++]));
+              pc &= 0xffff;
+              break;
+            case 7:
+              cy = 2;
+              r = 0x100 | rom[pc++];
+              writemem(r, pop());
+              pc &= 0xffff;
+              break;
+            case 8:
+              s = rom[pc++];
+              pc &= 0xffff;
+              add(s, 0);
+              break;
+            case 9:
+              s = rom[pc++];
+              pc &= 0xffff;
+              add(s, carry());
+              break;
+            case 0xa:
+              s = rom[pc++];
+              pc &= 0xffff;
+              sub(s, 0);
+              break;
+            case 0xb:
+              s = rom[pc++];
+              pc &= 0xffff;
+              sub(s, carry());
+              break;
+            case 0xc:
+              cy = 2;
+              writemem(0x100, rom[0xffff & (readmem(0x100) + readmem(0x104) +
+                                            (readmem(0x105) << 8))]);
+              break;
+            case 0xd:
+              writemem(0x100, readmem(0x100) | rom[pc++]);
+              pc &= 0xffff;
+              break;
+            case 0xe:
+              writemem(0x100, readmem(0x100) & rom[pc++]);
+              pc &= 0xffff;
+              break;
+            case 0xf:
+              writemem(0x100, readmem(0x100) ^ rom[pc++]);
+              pc &= 0xffff;
+              break;
+          }
+          break;
+        case 2:
+        case 3:
+          r = ((i & 1) << 8) | rom[pc++];
+          pc &= 0xffff;
+          switch (i >> 4) {
+            case 2:
+              cy = 2;
+              v = rom[pc++];
+              writemem(r, v);
+              pc &= 0xffff;
+              break;
+            case 3:
+            case 4:
+              cy = 2;
+              s = readmem(r);
+              r = readmem(0x100);
+              writemem(0x101, (readmem(0x101) & 0x7f) | (r < s ? 0x80 : 0));
+              if ((i >> 4) === 3 ? r === s : r !== s) branch(); else nobranch();
+              break;
+            default:
+              cy = memop(i >> 4, r);
+          }
+          break;
+        case 4:
+        case 5:
+        case 6:
+        case 7:
+          r = readmem((i & 3) | ((readmem(0x101) >> 1) & 0xc)) | ((i & 2) ? 0x100 : 0);
+          switch (i >> 4) {
+            case 2:
+              v = rom[pc++];
+              writemem(r, v);
+              pc &= 0xffff;
+              break;
+            case 3:
+            case 4:
+              cy = 2;
+              s = readmem(r);
+              r = rom[pc++];
+              pc &= 0xffff;
+              writemem(0x101, (readmem(0x101) & 0x7f) | (s < r ? 0x80 : 0));
+              if ((i >> 4) === 3 ? r === s : r !== s) branch(); else nobranch();
+              break;
+            default:
+              cy = memop(i >> 4, r);
+          }
+          break;
+        default:
+          switch (i & 0xe0) {
+            case 0x00:
+              cy = 2;
+              r = ((i & 7) << 8) | ((i & 0x10) << 7) | rom[pc++];
+              push(pc & 0xff);
+              push((pc & 0xff00) >> 8);
+              pc = (pc & 0xf000) | r;
+              break;
+            case 0x20:
+              cy = 2;
+              r = ((i & 7) << 8) | ((i & 0x10) << 7) | rom[pc++];
+              pc = (pc & 0xf000) | r;
+              break;
+            case 0x40:
+              cy = 2;
+              r = ((i & 0x10) << 4) | rom[pc++];
+              pc &= 0xffff;
+              if ((s = readmem(r)) & (1 << (i & 7))) {
+                writemem(r, s & ~(1 << (i & 7)));
+                branch();
+              } else nobranch();
+              break;
+            case 0x60:
+              cy = 2;
+              r = ((i & 0x10) << 4) | rom[pc++];
+              pc &= 0xffff;
+              if (readmem(r) & (1 << (i & 7))) branch(); else nobranch();
+              break;
+            case 0x80:
+              cy = 2;
+              r = ((i & 0x10) << 4) | rom[pc++];
+              pc &= 0xffff;
+              if (!(readmem(r) & (1 << (i & 7)))) branch(); else nobranch();
+              break;
+            case 0xa0:
+              r = ((i & 0x10) << 4) | rom[pc++];
+              pc &= 0xffff;
+              writemem(r, readlatch(r) ^ (1 << (i & 7)));
+              break;
+            case 0xc0:
+              r = ((i & 0x10) << 4) | rom[pc++];
+              pc &= 0xffff;
+              writemem(r, readlatch(r) & ~(1 << (i & 7)));
+              break;
+            case 0xe0:
+              r = ((i & 0x10) << 4) | rom[pc++];
+              pc &= 0xffff;
+              writemem(r, readlatch(r) | (1 << (i & 7)));
+              break;
+          }
+          break;
+      }
+      mcy += cy;
+      if (mcy >= spd) {
+        if (lcdUpdated)
+          lcdrefresh();
+        if (onSlice) onSlice();
+        mcy -= spd;
+        ++tick;
+        if (tick >= 50) {
+          intreq |= 1 << 3;
+          tick -= 50;
+        }
+        boundary = true;
+      }
+      /* Timer 0 */
+      if (sfr[0x10] & 0xc0) {
+        let c0 = 0;
+        if ((t0base += cy) >= t0scale)
+          do
+            c0++;
+          while ((t0base -= t0scale) >= t0scale);
+        if (c0) {
+          if ((sfr[0x10] & 0xe0) === 0xe0) {
+            t0l += c0;
+            if (t0l >= 256) {
+              t0l -= 256;
+              if (++t0h >= 256) {
+                t0h -= 256;
+                if ((t0l += sfr[0x13]) >= 256) {
+                  t0l -= 256;
+                  if ((t0h += sfr[0x15]) >= 256) {
+                    t0l = sfr[0x13];
+                    t0h = sfr[0x15];
+                  }
+                }
+                sfr[0x10] |= 10;
+                if (sfr[0x10] & 4)
+                  intreq |= 1 << 4;
+              }
+            }
+          } else {
+            if (sfr[0x10] & 0x40) {
+              t0l += c0;
+              if (t0l >= 256) {
+                t0l -= 256;
+                if ((t0l += sfr[0x13]) >= 256)
+                  t0l = sfr[0x13];
+                sfr[0x10] |= 2;
+                if (sfr[0x10] & 1)
+                  intreq |= 1 << 2;
+              }
+            }
+            if (sfr[0x10] & 0x80) {
+              t0h += c0;
+              if (t0h >= 256) {
+                t0h -= 256;
+                if ((t0h += sfr[0x15]) >= 256)
+                  t0h = sfr[0x15];
+                sfr[0x10] |= 8;
+                if (sfr[0x10] & 4)
+                  intreq |= 1 << 4;
+              }
+            }
+          }
+        }
+      }
+      /* Timer 1 */
+      if (sfr[0x18] & 0xc0) {
+        if ((sfr[0x18] & 0xe0) === 0xe0) {
+          t1l += cy;
+          if (t1l >= 256) {
+            t1l -= 256;
+            if (++t1h >= 256) {
+              t1h -= 256;
+              if ((t1l += sfr[0x1b]) >= 256) {
+                t1l -= 256;
+                if ((t1h += sfr[0x1d]) >= 256) {
+                  t1l = sfr[0x1b];
+                  t1h = sfr[0x1d];
+                }
+              }
+              sfr[0x18] |= 10;
+              if (sfr[0x18] & 4)
+                intreq |= 1 << 5;
+            }
+          }
+        } else {
+          if (sfr[0x18] & 0x40) {
+            t1l += cy;
+            if (t1l >= 256) {
+              t1l -= 256;
+              if ((t1l += sfr[0x1b]) >= 256)
+                t1l = sfr[0x1b];
+              sfr[0x18] |= 2;
+              if (sfr[0x18] & 1)
+                intreq |= 1 << 5;
+            }
+          }
+          if (sfr[0x18] & 0x80) {
+            t1h += cy;
+            if (t1h >= 256) {
+              t1h -= 256;
+              if ((t1h += sfr[0x1d]) >= 256)
+                t1h = sfr[0x1d];
+              sfr[0x18] |= 8;
+              if (sfr[0x18] & 4)
+                intreq |= 1 << 5;
+            }
+          }
+        }
+      }
+      if (!(sfr[0x0d] & 1) && !hasbios) {
+        if (!(pc = handle_fwcall(pc)))
+          break;
+        else
+          sfr[0x0d] |= 1;
+      }
+
+      if ((sfr[0x4e] & 3) === 3 && !imask)
+        intreq |= 1 << 9;
+
+      if (intreq && !imask && (sfr[0x08] & 0x80)) {
+        for (r = 0; r < 10; r++)
+          if (intreq & (1 << r))
+            break;
+        intreq &= ~(1 << r);
+        push(pc & 0xff);
+        push((pc & 0xff00) >> 8);
+        imask++;
+        pc = ((r & ~1) << 3) + ((r & 1) ? 0xb : 0x3);
+      }
+      if (boundary && ++done >= n)
+        break;
+    }
+    return done;
+  }
+
+  return {
+    W, H, lcd, flash, hooks, load, setBios, run, dateNow,
+    reset: resetcpu,
+    /* 0 up, 1 down, 2 left, 3 right, 4 A, 5 B, 6 mode, 7 sleep */
+    key: (i, down) => (down ? keypress(i) : keyrelease(i)),
+    get halted() { return halted; },
+    get gamesize() { return gamesize; },
+    get hasBios() { return !!hasbios; },
+    get lcdOn() { return !!lcdon; }
+  };
+})();
+
 /* ===== BEGIN inlined copy of web/hexedit.js ===========================
  * This page is deliberately a single self-contained file, so the hex
  * editor is inlined rather than loaded as a script. The copy below must
@@ -1731,6 +2845,7 @@ function renderGrid() {
     const acts = document.createElement("div");
     acts.className = "acts";
     if (!f.broken) {
+      if (f.filetype === VMU.GAME) acts.appendChild(mkBtn("▶ Play", "tiny primary", () => openPlayer(f)));
       acts.appendChild(mkBtn("Export ▾", "tiny", ev => exportMenu(ev.currentTarget, f)));
       acts.appendChild(mkBtn("Hex", "tiny", () => openHexEditor(f)));
       acts.appendChild(mkBtn("Rename", "tiny", () => renameFile(f)));
@@ -2011,6 +3126,263 @@ async function importFiles(list) {
   }
 
   if (changed) { markDirty(); render(); }
+}
+
+/* ---- mini-game player ----------------------------------------------- */
+/*
+ * Runs a game file on the emulated VMU. The emulator gets a copy of the
+ * whole card, as a real VMU runs its game from its own flash; anything the
+ * game saves lands in that copy, and is offered back to the card on close.
+ */
+const LCD_BG = "#aad5c3", LCD_FG = "#081052", LCD_GHOST = "rgba(8, 16, 82, .07)";
+const LCD_SCALE = 6;
+const BIOS_KEY = "dcvmu-bios";
+const player = {
+  file: null, raf: 0, last: 0, acc: 0, queue: [], dirty: true, saved: false,
+  audio: null, osc: null, gain: null, tone: -1, muted: false, bios: null
+};
+const PLAY_KEYS = {
+  ArrowUp: 0, ArrowDown: 1, ArrowLeft: 2, ArrowRight: 3,
+  a: 4, z: 4, b: 5, x: 5, m: 6, Enter: 6, s: 7, " ": 7
+};
+
+try { player.muted = localStorage.getItem("dcvmu-muted") === "1"; } catch (e) { /* no storage */ }
+try {
+  const b64 = localStorage.getItem(BIOS_KEY);
+  if (b64) player.bios = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+} catch (e) { player.bios = null; }
+
+function drawLcd() {
+  player.dirty = false;
+  const ctx = $("pl-lcd").getContext("2d");
+  const S = LCD_SCALE, lcd = VMS.lcd;
+  ctx.fillStyle = LCD_BG;
+  ctx.fillRect(0, 0, VMS.W * S, VMS.H * S);
+  const on = new Path2D(), ghost = new Path2D();
+  for (let y = 0; y < VMS.H; y++) {
+    if (y === 32) continue;
+    for (let x = 0; x < VMS.W; x++) {
+      if (lcd[y * VMS.W + x]) on.rect(x * S, y * S, S - 1, S - 1);
+      else if (y < 32) ghost.rect(x * S, y * S, S - 1, S - 1);   /* the status icons have no dot grid */
+    }
+  }
+  ctx.fillStyle = LCD_GHOST;
+  ctx.fill(ghost);
+  ctx.fillStyle = LCD_FG;
+  ctx.fill(on);
+}
+
+/* The buzzer is a square wave; SoftVMS's value counts both edges */
+function setTone(freq) {
+  player.tone = freq;
+  if (!player.osc) return;
+  const t = player.audio.currentTime;
+  if (freq > 0 && !player.muted && !document.hidden) {
+    player.osc.frequency.setValueAtTime(freq / 2, t);
+    player.gain.gain.setValueAtTime(0.06, t);
+  } else {
+    player.gain.gain.setValueAtTime(0, t);
+  }
+}
+
+function startAudio() {
+  if (player.audio) { player.audio.resume(); return; }
+  const AC = window.AudioContext || window.webkitAudioContext;
+  if (!AC) return;
+  try {
+    player.audio = new AC();
+    player.osc = player.audio.createOscillator();
+    player.gain = player.audio.createGain();
+    player.osc.type = "square";
+    player.gain.gain.value = 0;
+    player.osc.connect(player.gain).connect(player.audio.destination);
+    player.osc.start();
+  } catch (e) {
+    player.audio = player.osc = player.gain = null;
+  }
+}
+
+/* The game's own blocks, as the emulator holds them now */
+function playedFile() {
+  const f = player.file, out = new Uint8Array(f.blocks.length * VMU.BLK);
+  f.blocks.forEach((b, i) => out.set(VMS.flash.subarray(b * VMU.BLK, (b + 1) * VMU.BLK), i * VMU.BLK));
+  return out;
+}
+const sameBytes = (a, b) => a.length === b.length && a.every((v, i) => v === b[i]);
+
+function playerStatus(msg, warn) {
+  const el = $("pl-status");
+  el.textContent = msg;
+  el.classList.toggle("warn", !!warn);
+}
+
+function describeRun() {
+  if (VMS.halted === "exit")
+    playerStatus(VMS.hasBios ? "The game has quit." :
+      "The game has quit to the VMU menu, which needs a BIOS dump to show. Restart to play again.", true);
+  else if (VMS.halted)
+    playerStatus("The game called firmware this emulator doesn't know, so it has stopped.", true);
+  else
+    playerStatus((VMS.hasBios ? "Running with your BIOS dump" : "Running") +
+                 (player.saved ? " · the game has written to its file" : ""));
+}
+
+/* One button event per 10 ms slice, so a quick tap is still seen */
+const onSlice = () => {
+  const ev = player.queue.shift();
+  if (ev) VMS.key(ev[0], ev[1]);
+};
+
+function playFrame(t) {
+  player.raf = requestAnimationFrame(playFrame);
+  if (!player.last) player.last = t;
+  /* after a stall or a hidden tab, carry on rather than catch up */
+  player.acc += Math.min(t - player.last, 100);
+  player.last = t;
+  const n = Math.floor(player.acc / 10);
+  if (n) {
+    player.acc -= n * 10;
+    if (!VMS.halted) {
+      VMS.run(n, onSlice);
+      if (!player.saved && !sameBytes(playedFile(), player.file.data)) {
+        player.saved = true;
+        describeRun();
+      }
+      if (VMS.halted) { setTone(-1); describeRun(); }
+    }
+  }
+  if (player.dirty) drawLcd();
+}
+
+function resetGame() {
+  player.queue = [];
+  document.querySelectorAll(".vmu .pressed").forEach(b => b.classList.remove("pressed"));
+  VMS.setBios(player.bios);
+  VMS.load(VMU.image, state.fileName, VMS.dateNow());
+  player.saved = false;
+  VMS.reset(VMS.dateNow());
+  player.last = 0;
+  player.acc = 0;
+  player.dirty = true;
+  describeRun();
+}
+
+function openPlayer(f) {
+  /* the VMU runs its game in place, from the start of its flash */
+  if (f.firstblk !== 0) {
+    toast(f.name + " doesn't start at block 0, so a VMU can't run it", "err");
+    return;
+  }
+  player.file = f;
+  VMS.hooks.redraw = () => { player.dirty = true; };
+  VMS.hooks.sound = setTone;
+  VMS.hooks.error = msg => console.warn("VMU: " + msg);
+  $("pl-title").textContent = (f.vms && f.vms.descDc) || f.name;
+  $("pl-sound").textContent = "Sound: " + (player.muted ? "off" : "on");
+  $("pl-bios").textContent = player.bios ? "BIOS ✓" : "BIOS…";
+  $("player").hidden = false;
+  startAudio();
+  resetGame();
+  player.raf = requestAnimationFrame(playFrame);
+}
+
+function closePlayer() {
+  if ($("player").hidden) return;
+  cancelAnimationFrame(player.raf);
+  setTone(-1);
+  if (player.audio) player.audio.suspend();
+  $("player").hidden = true;
+  const f = player.file, data = playedFile();
+  if (!sameBytes(data, f.data) &&
+      confirm("The game changed its file on the emulated VMU, most likely by saving.\n\nKeep those changes on this card?")) {
+    VMU.writeFileData(f.idx, data);
+    markDirty();
+    render();
+    toast("Kept the changes to " + f.name, "ok");
+  }
+  player.file = null;
+}
+
+function playKey(k, down, btn) {
+  player.queue.push([k, down]);
+  const el = btn || document.querySelector('.vmu [data-key="' + k + '"]');
+  if (el) el.classList.toggle("pressed", down);
+}
+
+document.querySelectorAll(".vmu [data-key]").forEach(btn => {
+  const k = +btn.dataset.key;
+  let down = false;
+  const press = e => { e.preventDefault(); if (!down) { down = true; btn.setPointerCapture(e.pointerId); playKey(k, true, btn); } };
+  const release = () => { if (down) { down = false; playKey(k, false, btn); } };
+  btn.addEventListener("pointerdown", press);
+  btn.addEventListener("pointerup", release);
+  btn.addEventListener("pointercancel", release);
+  btn.addEventListener("lostpointercapture", release);
+  btn.addEventListener("contextmenu", e => e.preventDefault());
+});
+
+function playKeyEvent(e, down) {
+  if ($("player").hidden) return;
+  if (down && e.key === "Escape") { closePlayer(); return; }
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  const k = PLAY_KEYS[e.key.length === 1 ? e.key.toLowerCase() : e.key];
+  if (k === undefined) return;
+  e.preventDefault();
+  if (!e.repeat) playKey(k, down);
+}
+document.addEventListener("keydown", e => playKeyEvent(e, true));
+document.addEventListener("keyup", e => playKeyEvent(e, false));
+
+/* let go of everything when focus goes elsewhere, or keys stick down */
+window.addEventListener("blur", () => {
+  document.querySelectorAll(".vmu .pressed").forEach(b => playKey(+b.dataset.key, false, b));
+});
+document.addEventListener("visibilitychange", () => { if (!$("player").hidden) setTone(player.tone); });
+
+$("pl-close").addEventListener("click", closePlayer);
+$("pl-reset").addEventListener("click", resetGame);
+$("pl-sound").addEventListener("click", e => {
+  player.muted = !player.muted;
+  try { localStorage.setItem("dcvmu-muted", player.muted ? "1" : "0"); } catch (err) { /* no storage */ }
+  e.currentTarget.textContent = "Sound: " + (player.muted ? "off" : "on");
+  setTone(player.tone);
+});
+$("pl-bios").addEventListener("click", e => {
+  if (!player.bios) { $("file-bios").click(); return; }
+  popMenu(e.currentTarget, [
+    { label: "VMU BIOS dump" },
+    { text: "Load a different one…", fn: () => $("file-bios").click() },
+    { text: "Stop using it", fn: () => setBios(null) }
+  ]);
+});
+$("file-bios").addEventListener("change", async e => {
+  const file = e.target.files[0];
+  e.target.value = "";
+  if (!file) return;
+  let bytes;
+  try { bytes = await readFile(file); } catch (err) { toast(err.message, "err"); return; }
+  if (bytes.length !== 0x10000) {
+    toast(file.name + " is not a VMU BIOS dump (expected 64 KB)", "err");
+    return;
+  }
+  setBios(bytes);
+});
+
+/* Kept in this browser only, so it needn't be picked again each visit */
+function setBios(bytes) {
+  player.bios = bytes;
+  try {
+    if (bytes) {
+      let bin = "";
+      for (let i = 0; i < bytes.length; i += 0x2000)
+        bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x2000));
+      localStorage.setItem(BIOS_KEY, btoa(bin));
+    }
+    else localStorage.removeItem(BIOS_KEY);
+  } catch (e) { /* storage full or blocked: it lasts for this visit */ }
+  $("pl-bios").textContent = bytes ? "BIOS ✓" : "BIOS…";
+  toast(bytes ? "Using your BIOS dump" : "Emulating the BIOS calls instead", "ok");
+  resetGame();
 }
 
 /* ---- wiring ---------------------------------------------------------- */

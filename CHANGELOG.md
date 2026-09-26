@@ -38,4 +38,14 @@ code that `web/test/dctest.js` checks against the CLI byte for byte.
 - export `.dci`, `.vmi` + `.vms`, raw files, animated icon GIFs, icon and eyecatch PNGs
 - rename, remove, format, new blank card; download as `.bin` or `.dcm`
 - a hex editor for any file, with CRC checking and *Fix CRC*
+- *Play* on a VMU game runs it on an emulated VMU: a JavaScript port of
+  SoftVMS 1.10 by Marcus Comstedt, with the LCD, buttons (on screen or the
+  keyboard) and the buzzer. Without a BIOS dump the firmware calls games make
+  are emulated; a dump can be loaded to run the VMU's own menu. Anything the
+  game saves to its file can be kept on the card.
+- the emulator is tested against SoftVMS's own C code: both run the same game
+  with the same button presses and must show the same screen every half second,
+  and end with the same flash and the same tones. All 70 mini-games in
+  dreamcast-saves agree, over 210 runs of up to a minute each, as does a test
+  program for the flags and timer interrupts that games never show
 - links to the PS1 and PS2 memory card tools in ps2vmc-tool

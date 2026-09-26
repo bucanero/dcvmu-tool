@@ -19,7 +19,8 @@ was read in.
 It also runs in the browser, with nothing to install and nothing uploaded &mdash;
 the card is read and written locally, and never leaves your machine:
 
-- **[Dreamcast VMU Manager](https://bucanero.github.io/dcvmu-tool/)** &mdash; see [web/README.md](web/README.md)
+- **[Dreamcast VMU Manager](https://bucanero.github.io/dcvmu-tool/)** &mdash; see [web/README.md](web/README.md).
+  It can also play the VMU mini-games on a card, on an emulated VMU.
 
 For PlayStation 2 and PlayStation 1 memory cards, see [ps2vmc-tool](https://github.com/bucanero/ps2vmc-tool).
 
@@ -119,6 +120,7 @@ DC_SAVES=../dreamcast-saves make test
 - Animated GIF icons from [vmu2gif](https://github.com/bucanero/vmu2gif), whose LZW encoder is GIFSAVE by Sverre H. Huseby
 - VMS header layout from [Marcus Comstedt's Dreamcast documentation](http://mc.pp.se/dc/)
 - Byte helpers (`src/util.c`) from ps3mca-tool by jimmikaelkael, by way of [ps2vmc-tool](https://github.com/bucanero/ps2vmc-tool)
+- VMU emulator in the web page ported from SoftVMS 1.10 by [Marcus Comstedt](http://mc.pp.se/dc/), which [vmucd](https://github.com/bucanero/vmucd) is also based on; its `cpu.c` is kept unmodified in `web/test/softvms/` as the reference the port is tested against
 - PNG export with [svpng](https://github.com/miloyip/svpng) by Milo Yip (BSD-style license, in `include/svpng.h`)
 
 ## License
