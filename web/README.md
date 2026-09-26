@@ -29,10 +29,10 @@ Then open <http://localhost:8000/web/index.html>.
 | --- | --- |
 | `--mc-info`, `--mc-free` | Counters at the top of an open card, and the custom VMU colour if set |
 | `--list` | The file grid, plus a map of all 256 blocks |
-| `--file-info` | The grid card: descriptions, type, size, date, copy protection, CRC check |
+| `--file-info` | The grid card: descriptions, type, size, date, copy protection, CRC check; the *eyecatch* tag shows the eyecatch |
 | `--icons` | *Export ▾ → Icon frames / Eyecatch (.png)* |
 | `--icon-gif` | *Export ▾ → Animated icon (.gif)* — byte-identical to the CLI's |
-| `--dci-export`, `--vmi-export`, `--extract-file` | *Export ▾* on any file |
+| `--vmi-export`, `--extract-file`, `--dci-export` | *Export ▾* on any file: VMI + VMS, raw `.vms`, or Nexus `.dci` |
 | `--import` | *Import save…*, or drop saves onto an open card |
 | `--inject-file` | Import a `.vms` on its own; the page asks for the VMU file name |
 | `--rename`, `--remove` | *Rename*, *Remove* on a file |
@@ -49,8 +49,8 @@ Hovering a file highlights the blocks it occupies in the block map.
 - **Cards:** raw 128 KB images (`.bin`, `.vmu`, as Flycast and Redream write them)
   and Nexus `.dcm` dumps. The byte order is detected from the root block, so a
   renamed `.dcm` still opens.
-- **Saves:** `.dci` (Nexus), `.vmi` + `.vms` (the Dreamcast web browser's pair) and
-  raw `.vms`. A `.vmi` names its `.vms` through an 8-character resource name, so
+- **Saves:** `.vmi` + `.vms` (the Dreamcast web browser's pair), raw `.vms` and
+  `.dci` (Nexus). A `.vmi` names its `.vms` through an 8-character resource name, so
   pick or drop both files together; they are paired up by that name.
 
 File names keep their stored bytes: on a card a game's name is padded with

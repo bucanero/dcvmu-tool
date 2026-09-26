@@ -37,6 +37,8 @@ page it is one self-contained file, with a JavaScript port of the CLI's VMU
 code that `web/test/dctest.js` checks against the CLI byte for byte.
 
 - animated save icons, and a map of all 256 blocks that highlights a file's blocks
+- a save's eyecatch, the picture the Dreamcast file manager shows for it:
+  click its *eyecatch* tag for a larger view and a PNG download
 - import `.dci`, `.vmi` + `.vms` (paired by resource name) and raw `.vms`
 - export `.dci`, `.vmi` + `.vms`, raw files, animated icon GIFs, icon and eyecatch PNGs
 - rename, remove, format, new blank card; download as `.bin` or `.dcm`

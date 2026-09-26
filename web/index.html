@@ -203,6 +203,30 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 footer { margin-top: 40px; color: var(--fg-faint); font-size: 12px; text-align: center; line-height: 1.8; }
 footer a { color: var(--fg-dim); }
 
+/* ---------- eyecatch ---------- */
+/* a tag that opens something: tinted with the accent, unlike the plain ones */
+button.badge {
+  font: 11px var(--mono); padding: 3px 8px; border-radius: 999px; cursor: zoom-in;
+  background: #16264a; border-color: #2f4f8f; color: #9cc0ff;
+}
+button.badge:hover { background: #1e3566; border-color: var(--accent); color: #d6e4ff; }
+#eyec-view {
+  position: fixed; inset: 0; z-index: 60; background: rgba(5, 7, 10, .9);
+  display: flex; align-items: center; justify-content: center; padding: 16px;
+}
+#eyec-view[hidden] { display: none; }
+.eyec-box {
+  background: var(--bg-2); border: 1px solid var(--line-2); border-radius: var(--radius);
+  padding: 14px; width: 318px; max-width: 100%; box-shadow: 0 24px 60px rgba(0,0,0,.6);
+}
+.eyec-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.eyec-title { flex: 1; min-width: 0; font-weight: 600; font-size: 13.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.eyec-box canvas {
+  display: block; width: 100%; height: auto; image-rendering: pixelated;
+  background: #0a0c11; border: 1px solid var(--line); border-radius: 6px;
+}
+.eyec-foot { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 12px; color: var(--fg-dim); }
+
 /* ---------- mini-game player ---------- */
 #player {
   position: fixed; inset: 0; z-index: 60;
@@ -353,6 +377,19 @@ footer a { color: var(--fg-dim); }
 <div id="toasts"></div>
 <input type="file" id="file-card" style="display:none">
 <input type="file" id="file-save" style="display:none" multiple accept=".dci,.vmi,.vms">
+<div id="eyec-view" hidden>
+  <div class="eyec-box" role="dialog" aria-modal="true" aria-labelledby="eyec-title">
+    <div class="eyec-head">
+      <span class="eyec-title" id="eyec-title">—</span>
+      <button class="tiny" id="eyec-close" title="Close (Esc)">&times;</button>
+    </div>
+    <canvas id="eyec-canvas" width="72" height="56"></canvas>
+    <div class="eyec-foot">
+      <span class="spacer" id="eyec-info"></span>
+      <button class="tiny" id="eyec-png">Download PNG</button>
+    </div>
+  </div>
+</div>
 <div id="player" hidden>
   <div class="vmu" role="dialog" aria-modal="true" aria-labelledby="pl-title">
     <div class="vmu-head">
@@ -2843,7 +2880,16 @@ function renderGrid() {
     meta.appendChild(chip(f.filesize + (f.filesize === 1 ? " block" : " blocks")));
     meta.appendChild(chip(fmtDate(f.timestamp, true)));
     if (f.copyprotect === VMU.PROTECTED) meta.appendChild(chip("copy protected"));
-    if (f.vms && f.vms.eyecatch) meta.appendChild(chip("eyecatch"));
+    /* the picture the Dreamcast file manager shows for this save */
+    const eyec = f.vms && f.vms.eyecatch ? VMU.eyecatchRGBA(f.vms) : null;
+    if (eyec) {
+      const b = document.createElement("button");
+      b.className = "badge";
+      b.textContent = "eyecatch";
+      b.title = "Show the eyecatch";
+      b.addEventListener("click", () => openEyecatch(f, eyec));
+      meta.appendChild(b);
+    }
     if (f.broken) meta.appendChild(chip("broken FAT chain", "bad"));
     if (f.crcUnset) meta.appendChild(chip("no CRC"));
     else if (f.crcOk === false) meta.appendChild(chip("CRC mismatch", "warn"));
@@ -2940,9 +2986,9 @@ function exportMenu(anchor, f) {
   const base = safeName(f.name, "vmufile");
   const items = [
     { label: "Export file as" },
-    { text: "Nexus  (.dci)", fn: () => download(VMU.dciEncode(f.idx), base + ".dci") },
     { text: "VMI + VMS  (web browser)", fn: () => exportVmi(f) },
     { text: "Raw file  (.vms)", fn: () => download(VMU.readFile(f.idx), base + ".vms") },
+    { text: "Nexus  (.dci)", fn: () => download(VMU.dciEncode(f.idx), base + ".dci") },
     { sep: true },
     { label: "Images" }
   ];
@@ -3134,6 +3180,33 @@ async function importFiles(list) {
 
   if (changed) { markDirty(); render(); }
 }
+
+/* ---- eyecatch viewer ------------------------------------------------ */
+const EYECATCH_KIND = { 1: "true colour", 2: "256 colours", 3: "16 colours" };
+let eyecFile = null;
+
+function openEyecatch(f, px) {
+  eyecFile = f;
+  $("eyec-title").textContent = (f.vms && f.vms.descDc) || f.name;
+  $("eyec-info").textContent = "72 × 56 · " + EYECATCH_KIND[f.vms.eyecatch];
+  const ctx = $("eyec-canvas").getContext("2d");
+  ctx.clearRect(0, 0, 72, 56);
+  ctx.putImageData(new ImageData(px, 72, 56), 0, 0);
+  $("eyec-view").hidden = false;
+  $("eyec-close").focus();
+}
+function closeEyecatch() {
+  $("eyec-view").hidden = true;
+  eyecFile = null;
+}
+$("eyec-close").addEventListener("click", closeEyecatch);
+$("eyec-view").addEventListener("click", e => { if (e.target === e.currentTarget) closeEyecatch(); });
+$("eyec-png").addEventListener("click", () => {
+  if (eyecFile) exportPng(VMU.eyecatchRGBA(eyecFile.vms), 72, 56, safeName(eyecFile.name, "vmufile") + "_eyecatch.png");
+});
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape" && !$("eyec-view").hidden) closeEyecatch();
+});
 
 /* ---- mini-game player ----------------------------------------------- */
 /*
